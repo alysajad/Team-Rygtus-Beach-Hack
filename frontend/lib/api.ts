@@ -49,3 +49,20 @@ export interface PipelineSuggestion {
     stack: StackInfo;
     suggested_steps: string[];
 }
+
+export interface AKSConfig {
+    owner: string;
+    repo: string;
+    azure_credentials: string; // JSON string
+    acr_name: string;
+    aks_cluster: string;
+    resource_group: string;
+}
+
+export const configureDeployment = async (config: AKSConfig) => {
+    return api.post("/deployment/aks/configure", config);
+};
+
+export const generateCDPipeline = async () => {
+    return api.post("/pipeline/generate-cd");
+};

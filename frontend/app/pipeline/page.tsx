@@ -96,12 +96,20 @@ function SortableItem({ id }: SortableItemProps) {
     );
 }
 
+import { DeploymentModal } from "@/components/deployment-modal";
+import { generateCDPipeline } from "@/lib/api";
+import { Cloud, Check } from "lucide-react";
+
 export default function PipelinePage() {
     const router = useRouter();
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
     const [stack, setStack] = useState<StackInfo | null>(null);
     const [steps, setSteps] = useState<string[]>([]);
+
+    // Deployment states
+    const [isConfigured, setIsConfigured] = useState(false);
+    const [cdGenerating, setCdGenerating] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -143,9 +151,6 @@ export default function PipelinePage() {
         setGenerating(true);
         try {
             const { data } = await api.post("/pipeline/generate-and-commit", { steps });
-            // Encode data to pass via query params mostly not great for large YAML but for hackathon OK.
-            // Better: Store in context/localStorage or just show generic success page.
-            // We'll pass the file path and commit shas.
             const query = new URLSearchParams({
                 path: data.file_path,
                 commit: data.commit,
@@ -160,9 +165,34 @@ export default function PipelinePage() {
         }
     };
 
+    const handleGenerateCD = async () => {
+        setCdGenerating(true);
+        try {
+            const { data } = await generateCDPipeline();
+            const query = new URLSearchParams({
+                path: data.file_path,
+                commit: data.commit,
+                yaml: data.yaml_preview
+            }).toString();
+
+            router.push(`/commit?${query}`);
+        } catch (err) {
+            console.error(err);
+            alert("Failed to commit CD pipeline.");
+            setCdGenerating(false);
+        }
+    };
+
     if (loading) {
         return <PipelineSkeleton />;
     }
+
+    // Hack: Assuming repo info is not deeply needed for modal display only,
+    // or we fetch it from backend context endpoint if we made one.
+    // For now, passing placeholders or simple check.
+    // Ideally we fetch current repo info.
+    const owner = "";
+    const repo = "";
 
     return (
         <div className="min-h-screen p-8 max-w-6xl mx-auto flex flex-col lg:flex-row gap-8">
@@ -173,36 +203,74 @@ export default function PipelinePage() {
                     <p className="text-muted-foreground">Review and order your workflow steps.</p>
                 </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2">
-                            <Cpu className="size-5 text-primary" />
-                            Stack Analysis
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground flex items-center gap-2">
-                                <FileCode className="size-4" /> Language
-                            </span>
-                            <Badge variant="outline" className="uppercase">{stack?.language}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground flex items-center gap-2">
-                                <Box className="size-4" /> Framework
-                            </span>
-                            <Badge variant="outline" className="uppercase">{stack?.framework}</Badge>
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <span className="text-sm text-muted-foreground flex items-center gap-2">
-                                <Container className="size-4" /> Docker
-                            </span>
-                            <Badge variant={stack?.has_dockerfile ? "default" : "secondary"}>
-                                {stack?.has_dockerfile ? "Detected" : "None"}
-                            </Badge>
-                        </div>
-                    </CardContent>
-                </Card>
+                <div className="space-y-4">
+                    {/* Deployment Section */}
+                    <Card className="border-primary/20 bg-primary/5">
+                        <CardHeader className="py-4">
+                            <CardTitle className="text-base flex items-center justify-between">
+                                <span className="flex items-center gap-2"><Cloud className="size-4" /> Deployment</span>
+                                {isConfigured && <Badge variant="default" className="bg-green-600 hover:bg-green-700 text-[10px]"><Check className="size-3 mr-1" /> Configured</Badge>}
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            {isConfigured ? (
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">Target: AKS</p>
+                                    <Button size="sm" className="w-full" onClick={handleGenerateCD} disabled={cdGenerating}>
+                                        {cdGenerating ? (
+                                            <>
+                                                <Loader2 className="mr-2 size-4 animate-spin" />
+                                                Generating CD...
+                                            </>
+                                        ) : (
+                                            "Generate CD Pipeline"
+                                        )}
+                                    </Button>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    <p className="text-sm text-muted-foreground">Add deployment target to enable CD pipeline generation.</p>
+                                    <DeploymentModal
+                                        onConfigured={() => setIsConfigured(true)}
+                                        owner={owner}
+                                        repo={repo}
+                                    />
+                                </div>
+                            )}
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Cpu className="size-5 text-primary" />
+                                Stack Analysis
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <FileCode className="size-4" /> Language
+                                </span>
+                                <Badge variant="outline" className="uppercase">{stack?.language}</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <Box className="size-4" /> Framework
+                                </span>
+                                <Badge variant="outline" className="uppercase">{stack?.framework}</Badge>
+                            </div>
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm text-muted-foreground flex items-center gap-2">
+                                    <Container className="size-4" /> Docker
+                                </span>
+                                <Badge variant={stack?.has_dockerfile ? "default" : "secondary"}>
+                                    {stack?.has_dockerfile ? "Detected" : "None"}
+                                </Badge>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </div>
 
                 {stack?.detected_files && stack.detected_files.length > 0 && (
                     <Card>
