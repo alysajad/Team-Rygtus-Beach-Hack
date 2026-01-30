@@ -5,15 +5,14 @@ from app.models.schemas import RepoSelectRequest
 
 router = APIRouter()
 
+from app.dependencies import get_token
+
 # In-memory storage for selected repo context
 # Map: token (acting as session ID) -> {owner, repo}
 # WARNING: using token as key is not secure for production but fine for hackathon scope where we don't have session management
 token_repo_map = {}
 
-def get_token(authorization: str = Header(...)):
-    if not authorization.startswith("Bearer "):
-         raise HTTPException(status_code=401, detail="Invalid Authorization header format")
-    return authorization.split(" ")[1]
+# get_token moved to app.dependencies
 
 @router.get("/", response_model=List[dict])
 def list_repos(token: str = Depends(get_token)):

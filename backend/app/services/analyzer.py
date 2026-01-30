@@ -1,4 +1,6 @@
 from app.services.github import github_client
+import base64
+import json
 
 class RepoAnalyzer:
     def analyze(self, token: str, owner: str, repo: str) -> dict:
@@ -15,7 +17,8 @@ class RepoAnalyzer:
             "framework": "unknown",
             "has_dockerfile": False,
             "dependency_file": None,
-            "detected_files": []
+            "detected_files": [],
+            "has_test_script": False
         }
         
         if not contents or not isinstance(contents, list):
@@ -34,6 +37,9 @@ class RepoAnalyzer:
             # For hackathon, assuming nodejs usage.
             stack_info["framework"] = "node" 
             
+            # Check for test script
+            self._check_node_test_script(token, owner, repo, stack_info)
+            
         elif "requirements.txt" in file_names:
             stack_info["language"] = "python"
             stack_info["dependency_file"] = "requirements.txt"
@@ -45,5 +51,19 @@ class RepoAnalyzer:
             stack_info["framework"] = "maven"
 
         return stack_info
+
+    def _check_node_test_script(self, token: str, owner: str, repo: str, stack_info: dict):
+        """Helper to check if package.json has a test script."""
+        try:
+            pkg_data = github_client.get_repo_contents(token, owner, repo, "package.json")
+            if pkg_data and "content" in pkg_data:
+                content_str = base64.b64decode(pkg_data["content"]).decode("utf-8")
+                pkg_json = json.loads(content_str)
+                scripts = pkg_json.get("scripts", {})
+                if "test" in scripts:
+                    stack_info["has_test_script"] = True
+        except Exception as e:
+            print(f"Error checking package.json: {e}")
+            # Fail safe, assume false
 
 repo_analyzer = RepoAnalyzer()

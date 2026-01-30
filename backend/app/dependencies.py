@@ -1,4 +1,6 @@
-from app.services.github import github_client
+from fastapi import Header, HTTPException
 
-def get_github_client():
-    return github_client
+def get_token(authorization: str = Header(...)):
+    if not authorization.startswith("Bearer "):
+         raise HTTPException(status_code=401, detail="Invalid Authorization header format")
+    return authorization.split(" ")[1]

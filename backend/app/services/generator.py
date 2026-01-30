@@ -45,10 +45,23 @@ class WorkflowGenerator:
                     "run": "pytest"
                 })
             elif stack_info["language"] == "javascript":
-                job_steps.append({
-                    "name": "Run Tests",
-                    "run": "npm test"
-                })
+                has_test = stack_info.get("has_test_script", False)
+                if has_test:
+                     job_steps.append({
+                        "name": "Run Tests",
+                        "run": "npm test"
+                    })
+                else:
+                    # Adaptive fallback: Check at runtime if we can run tests
+                    # This prevents the pipeline from failing on "missing script: test"
+                    job_steps.append({
+                        "name": "Run Tests (optional)",
+                        "run": """if npm run | grep -q "test"; then
+  npm test
+else
+  echo "No test script found, skipping tests"
+fi"""
+                    })
 
         # Docker Build
         if "docker_build" in steps:

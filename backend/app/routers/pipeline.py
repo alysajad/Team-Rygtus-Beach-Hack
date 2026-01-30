@@ -2,7 +2,8 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 from app.services.analyzer import repo_analyzer
 from app.services.generator import workflow_generator
 from app.services.github import github_client
-from app.routers.repos import get_token, get_current_repo_context
+from app.routers.repos import get_current_repo_context
+from app.dependencies import get_token
 from app.models.schemas import PipelineGenerateRequest
 import base64
 
@@ -10,6 +11,7 @@ router = APIRouter()
 
 @router.get("/suggest")
 @router.post("/suggest")
+# ... existing suggest_pipeline ...
 def suggest_pipeline(token: str = Depends(get_token)):
     """
     Analyzes the selected repo and returns suggested pipeline steps.
@@ -62,5 +64,63 @@ def generate_and_commit_pipeline(
         "message": "Pipeline created successfully",
         "file_path": file_path,
         "commit": result["commit"]["sha"],
+        "yaml_preview": yaml_content
+    }
+
+@router.post("/generate-cd")
+def generate_cd_pipeline(token: str = Depends(get_token)):
+    """
+    Generates and commits a CD pipeline (Infra-aware).
+    Requires deployment to be configured first.
+    """
+    from app.routers.deployment import DEPLOYMENT_CONFIGS
+    
+    config = DEPLOYMENT_CONFIGS.get(token)
+    if not config or not config.get("configured"):
+        raise HTTPException(status_code=400, detail="Deployment not configured. Please configure AKS deployment first.")
+
+    # Get Repo Context
+    # Fixed to use the function instead of direct dict access which was incorrect 
+    # (SELECTED_REPOS didn't exist, it's token_repo_map in repos.py)
+    try:
+        repo_context = get_current_repo_context(token)
+    except HTTPException:
+        raise HTTPException(status_code=400, detail="No repository selected context found.")
+        
+    owner = repo_context["owner"]
+    repo = repo_context["repo"]
+    
+    # Generate CD YAML
+    from app.services.cd_generator import CDWorkflowGenerator
+    generator = CDWorkflowGenerator()
+    yaml_content = generator.generate_aks_cd(
+        acr_name=config["acr_name"],
+        aks_cluster=config["aks_cluster"],
+        resource_group=config["resource_group"]
+    )
+    
+    # Commit to GitHub
+    file_path = ".github/workflows/cd.yml"
+    message = "Add AKS CD Pipeline"
+    content_b64 = base64.b64encode(yaml_content.encode()).decode()
+    
+    existing = github_client.get_repo_contents(token, owner, repo, file_path)
+    sha = existing["sha"] if existing else None
+    
+    result = github_client.create_or_update_file(
+        token=token,
+        owner=owner,
+        repo=repo,
+        path=file_path,
+        message=message,
+        content_b64=content_b64,
+        sha=sha
+    )
+    
+    return {
+        "status": "success",
+        "message": "CD Pipeline generated and committed.",
+        "file_path": file_path,
+        "commit": result["content"]["sha"],
         "yaml_preview": yaml_content
     }
