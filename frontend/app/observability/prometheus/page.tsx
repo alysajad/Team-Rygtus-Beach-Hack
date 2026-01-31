@@ -130,9 +130,11 @@ export default function ObservabilityPage() {
                     </div>
                 </div>
 
-                <div className="flex items-center gap-4 bg-card border rounded-lg px-4 py-2">
-                    <Label htmlFor="demo-mode" className="text-sm font-medium">Demo Simulation</Label>
-                    <Switch id="demo-mode" checked={isDemo} onCheckedChange={handleDemoToggle} />
+                <div className="flex items-center gap-4">
+                    <div className="flex items-center gap-4 bg-card border rounded-lg px-4 py-2">
+                        <Label htmlFor="demo-mode" className="text-sm font-medium">Demo Simulation</Label>
+                        <Switch id="demo-mode" checked={isDemo} onCheckedChange={handleDemoToggle} />
+                    </div>
                 </div>
             </div>
 
@@ -215,6 +217,7 @@ export default function ObservabilityPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base">Raw Telemetry</CardTitle>
+                        <CardDescription>Detailed metrics data from Prometheus</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs font-mono text-muted-foreground">
@@ -226,6 +229,18 @@ export default function ObservabilityPage() {
                                 </div>
                             ))}
                         </div>
+
+                        {/* Show raw Prometheus data if available */}
+                        {activeData.rawMetrics && (
+                            <div className="mt-4">
+                                <div className="text-sm font-semibold mb-2">Raw Prometheus Metrics</div>
+                                <div className="bg-muted/50 rounded-lg p-4 border max-h-96 overflow-y-auto">
+                                    <pre className="text-xs whitespace-pre-wrap break-words font-mono text-muted-foreground">
+                                        {activeData.rawMetrics}
+                                    </pre>
+                                </div>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
             </div>

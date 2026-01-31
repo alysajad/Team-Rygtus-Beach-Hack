@@ -28,54 +28,54 @@ import {
     BarChart3,
     Mail,
     MessageSquare,
-    Shield, // Health Agent Icon
-    Play,
-    Loader2
+    AlertTriangle,
+    Database,
+    Globe,
+    Bug,
+    Bell,
+    MessageCircle,
+    FileText,
+    Shield,
 } from "lucide-react";
 
 // Custom Node Component
 const CustomNode = ({ data, id }: { data: any; id: string }) => {
     const IconComponent = data.icon;
     const isServerNode = data.label === "Server";
-    const isPrometheusNode = data.label === "Prometheus";
-    const isConfigurable = isServerNode || isPrometheusNode;
 
     return (
-        <div className="px-5 py-4 shadow-lg rounded-xl border border-border bg-card text-card-foreground min-w-[200px] relative hover:ring-2 hover:ring-ring transition-all duration-200"
-            style={{ borderLeftColor: data.color, borderLeftWidth: '4px' }}>
-
+        <div className="px-5 py-4 shadow-xl rounded-xl border-2 bg-gradient-to-br from-white to-gray-50 min-w-[180px] relative hover:shadow-2xl transition-all duration-200 hover:scale-105"
+            style={{ borderColor: data.color }}>
             {/* Input Handle (left side) */}
             <Handle
                 type="target"
                 position={Position.Left}
-                className="w-3 h-3 !bg-muted-foreground transition-all hover:scale-125 backdrop-blur-sm"
+                className="w-4 h-4 !border-2 !border-white shadow-md transition-all hover:scale-125"
+                style={{ backgroundColor: data.color }}
             />
 
             <div className="flex items-center gap-3">
                 <div
-                    className="p-2.5 rounded-lg bg-muted"
+                    className="p-2.5 rounded-lg shadow-sm"
+                    style={{ backgroundColor: data.color + "25" }}
                 >
                     <IconComponent
-                        className="size-5"
+                        className="size-6"
                         style={{ color: data.color }}
                     />
                 </div>
-                <div>
-                    <div className="font-semibold text-sm">{data.label}</div>
-                    <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{data.subLabel || "Node"}</div>
-                </div>
+                <div className="font-bold text-sm text-black">{data.label}</div>
             </div>
 
-            {/* Configuration Input */}
-            {isConfigurable && (
+            {/* API Input for Server Node */}
+            {isServerNode && (
                 <div className="mt-3">
-                    <label className="text-[10px] text-muted-foreground mb-1 block">API Endpoint / IP</label>
                     <Input
                         type="text"
-                        placeholder={isPrometheusNode ? "http://demo...:9090" : "Server IP"}
+                        placeholder="Enter API (e.g., 20.197.7.126:9100)"
                         value={data.apiEndpoint || ""}
                         onChange={(e) => data.onApiChange?.(id, e.target.value)}
-                        className="h-7 text-xs bg-background"
+                        className="text-xs h-8 text-black"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>
@@ -85,7 +85,8 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
             <Handle
                 type="source"
                 position={Position.Right}
-                className="w-3 h-3 !bg-muted-foreground transition-all hover:scale-125"
+                className="w-4 h-4 !border-2 !border-white shadow-md transition-all hover:scale-125"
+                style={{ backgroundColor: data.color }}
             />
         </div>
     );
@@ -100,37 +101,44 @@ const nodeDefinitions = [
     {
         type: "server",
         label: "Server",
-        subLabel: "Infrastructure",
         icon: Server,
-        color: "#3b82f6", // Blue
-    },
-    {
-        type: "prometheus",
-        label: "Prometheus",
-        subLabel: "Telemetry Source",
-        icon: BarChart3,
-        color: "#f97316", // Orange
-    },
-    {
-        type: "healthAgent",
-        label: "Health Agent",
-        subLabel: "AI Analysis",
-        icon: Shield,
-        color: "#ef4444", // Red
+        color: "#3b82f6",
     },
     {
         type: "telemetry",
         label: "Telemetry",
-        subLabel: "Visualization",
         icon: Activity,
-        color: "#8b5cf6", // Purple
+        color: "#8b5cf6",
+    },
+    {
+        type: "prometheus",
+        label: "Prometheus",
+        icon: BarChart3,
+        color: "#f97316",
     },
     {
         type: "sendMail",
         label: "Send Mail",
-        subLabel: "Notification",
         icon: Mail,
-        color: "#10b981", // Emerald
+        color: "#10b981",
+    },
+    {
+        type: "sendSms",
+        label: "Send SMS",
+        icon: MessageSquare,
+        color: "#06b6d4",
+    },
+    {
+        type: "healthAgent",
+        label: "Health Agent",
+        icon: Shield,
+        color: "#22c55e",
+    },
+    {
+        type: "logAnalyzer",
+        label: "Investigator Agent",
+        icon: FileText,
+        color: "#eab308",
     },
 ];
 
@@ -148,7 +156,7 @@ export default function AutomationPage() {
         [setEdges]
     );
 
-    // Handle API endpoint change
+    // Handle API endpoint change for server nodes
     const handleApiChange = useCallback((nodeId: string, apiEndpoint: string) => {
         setNodes((nds) =>
             nds.map((node) =>
@@ -165,12 +173,11 @@ export default function AutomationPage() {
             id: `${nodeType.type}-${nodeId}`,
             type: "custom",
             position: {
-                x: Math.random() * 300 + 100,
-                y: Math.random() * 200 + 100,
+                x: Math.random() * 400 + 100,
+                y: Math.random() * 300 + 100,
             },
             data: {
                 label: nodeType.label,
-                subLabel: nodeType.subLabel,
                 icon: nodeType.icon,
                 color: nodeType.color,
                 apiEndpoint: "",
@@ -201,8 +208,8 @@ export default function AutomationPage() {
                 event.target as HTMLElement
             ).getBoundingClientRect();
             const position = {
-                x: event.clientX - reactFlowBounds.left - 100,
-                y: event.clientY - reactFlowBounds.top - 40,
+                x: event.clientX - reactFlowBounds.left - 80,
+                y: event.clientY - reactFlowBounds.top - 20,
             };
 
             const newNode: Node = {
@@ -211,7 +218,6 @@ export default function AutomationPage() {
                 position,
                 data: {
                     label: nodeDef.label,
-                    subLabel: nodeDef.subLabel,
                     icon: nodeDef.icon,
                     color: nodeDef.color,
                     apiEndpoint: "",
@@ -230,152 +236,286 @@ export default function AutomationPage() {
         event.dataTransfer.effectAllowed = "move";
     };
 
-    // Execute workflow
+    // Execute workflow - fetch metrics from server node
     const executeWorkflow = async () => {
+        // Find nodes
+        const prometheusNode = nodes.find(n => n.data.label === "Prometheus");
+        const serverNode = nodes.find(n => n.data.label === "Server");
+        const healthAgentNode = nodes.find(n => n.data.label === "Health Agent");
+        const investigatorNode = nodes.find(n => n.data.label === "Log Analyzer");
+
+        if (!prometheusNode || !serverNode) {
+            alert("Please add both Prometheus and Server nodes");
+            return;
+        }
+
+        // Check if Prometheus and Server are connected
+        const isPrometheusServerConnected = edges.some(
+            edge =>
+                (edge.source === prometheusNode.id && edge.target === serverNode.id) ||
+                (edge.source === serverNode.id && edge.target === prometheusNode.id)
+        );
+
+        if (!isPrometheusServerConnected) {
+            alert("Please connect Prometheus and Server nodes");
+            return;
+        }
+
+        const apiEndpoint = serverNode.data.apiEndpoint;
+        if (!apiEndpoint) {
+            alert("Please enter an API endpoint in the Server node");
+            return;
+        }
+
+        // Check if Health Agent is connected to Prometheus
+        const isHealthAgentConnected = healthAgentNode && edges.some(
+            edge =>
+                (edge.source === prometheusNode.id && edge.target === healthAgentNode.id) ||
+                (edge.source === healthAgentNode.id && edge.target === prometheusNode.id)
+        );
+
+        // Check if Investigator (Log Analyzer) is connected to Prometheus
+        const isInvestigatorConnected = investigatorNode && edges.some(
+            edge =>
+                (edge.source === prometheusNode.id && edge.target === investigatorNode.id) ||
+                (edge.source === investigatorNode.id && edge.target === prometheusNode.id)
+        );
+
         setIsLoadingMetrics(true);
-        setShowMetrics(false);
+        setShowMetrics(true);
+
+        console.log('Fetching metrics from:', apiEndpoint);
+        console.log('Health Agent connected:', isHealthAgentConnected);
+        console.log('Investigator connected:', isInvestigatorConnected);
 
         try {
-            // 1. Check for Prometheus -> Health Agent
-            const prometheusNode = nodes.find(n => n.data.label === "Prometheus");
-            const healthNode = nodes.find(n => n.data.label === "Health Agent");
+            // Step 1: Fetch metrics from server via Prometheus
+            const metricsResponse = await fetch('http://localhost:8000/automation/metrics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    endpoint: apiEndpoint
+                })
+            });
 
-            const isPrometheusConnectedToHealth = prometheusNode && healthNode && edges.some(
-                edge => edge.source === prometheusNode.id && edge.target === healthNode.id
-            );
+            console.log('Metrics response status:', metricsResponse.status);
 
-            if (isPrometheusConnectedToHealth) {
-                let endpoint = prometheusNode.data.apiEndpoint;
-                const serverNode = nodes.find(n => n.data.label === "Server");
-                if (!endpoint && serverNode && serverNode.data.apiEndpoint && edges.some(e => e.source === serverNode.id && e.target === prometheusNode.id)) {
-                    endpoint = `http://${serverNode.data.apiEndpoint}:9090`;
+            if (!metricsResponse.ok) {
+                const errorData = await metricsResponse.json();
+                console.error('Error response:', errorData);
+                throw new Error(errorData.detail || 'Failed to fetch metrics');
+            }
+
+            const metricsResult = await metricsResponse.json();
+            console.log('Metrics fetched successfully');
+
+            // Step 2: If Health Agent is connected, analyze health
+            if (isHealthAgentConnected) {
+                console.log('Analyzing health with Health Agent...');
+
+                const healthResponse = await fetch('http://localhost:8000/automation/analyze-health', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        metrics_data: metricsResult.data
+                    })
+                });
+
+                if (!healthResponse.ok) {
+                    const errorData = await healthResponse.json();
+                    throw new Error(errorData.detail || 'Failed to analyze health');
                 }
 
-                // Fetch Health Data
-                const healthUrl = new URL("http://localhost:8000/agents/health");
-                if (endpoint) healthUrl.searchParams.append("url", endpoint);
+                const healthResult = await healthResponse.json();
+                console.log('Health analysis result:', healthResult);
 
-                const response = await fetch(healthUrl.toString());
-                if (!response.ok) throw new Error("Failed to fetch health agent analysis");
-
-                const healthData = await response.json();
-
-                // Fetch Normalized Metrics for visualization
-                const normUrl = new URL("http://localhost:8000/telemetry/prometheus/normalized");
-                if (endpoint) normUrl.searchParams.append("url", endpoint);
-
-                const normRes = await fetch(normUrl.toString());
-                const metrics = await normRes.json();
-
-                // Save to localStorage for the dashboard to pick up
-                const dashboardData = {
-                    health: healthData,
-                    metrics: metrics,
+                // Store data for observability page
+                const observabilityData = {
+                    health: {
+                        health: healthResult.health_status,
+                        issues: healthResult.issues
+                    },
+                    metrics: healthResult.metrics,
+                    rawMetrics: healthResult.raw_metrics,  // Include raw Prometheus metrics
                     timestamp: new Date().toISOString(),
-                    source: endpoint || "Demo Source"
+                    source: apiEndpoint
                 };
-                localStorage.setItem("observabilityData", JSON.stringify(dashboardData));
 
-                // Redirect
-                router.push("/observability/prometheus");
-                return;
-            }
+                localStorage.setItem('observabilityData', JSON.stringify(observabilityData));
 
-            // 2. Fallback: Old Server -> Telemetry Logic
-            const serverNode = nodes.find(n => n.data.label === "Server");
-            if (serverNode) {
-                const apiEndpoint = serverNode.data.apiEndpoint;
-                if (!apiEndpoint) {
-                    alert("Please enter an API endpoint in the Server node");
-                    return;
+                // Format health analysis for display in sidebar
+                const healthDisplay = `
+=== HEALTH ANALYSIS ===
+
+Status: ${healthResult.health_status.toUpperCase()}
+${healthResult.issues.length > 0 ? `\nIssues Found:\n${healthResult.issues.map((issue: string) => `  - ${issue}`).join('\n')}` : '\nNo issues detected'}
+
+=== KEY METRICS ===
+${healthResult.metrics.map((m: any) => `${m.metric}: ${m.value}`).join('\n')}
+
+✅ Data saved! Redirecting to Observability Dashboard...
+                `.trim();
+
+                setMetricsData(healthDisplay);
+
+                // Navigate to observability page after a short delay
+                setTimeout(() => {
+                    router.push('/observability/prometheus');
+                }, 2000);
+            } else if (isInvestigatorConnected) {
+                // Investigator Agent is connected
+                console.log('Investigating with Investigator Agent...');
+
+                const investigateResponse = await fetch('http://localhost:8000/automation/investigate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        metrics_data: metricsResult.data
+                    })
+                });
+
+                if (!investigateResponse.ok) {
+                    const errorData = await investigateResponse.json();
+                    throw new Error(errorData.detail || 'Failed to investigate');
                 }
-                // Call old automation endpoint if exists, else show error
-                // For now, implementing dummy old logic fetch or alert
-                alert("Server execution flow is legacy. Please use Prometheus -> Health Agent.");
+
+                const investigateResult = await investigateResponse.json();
+                console.log('Investigation result:', investigateResult);
+
+                // Store data for investigator observability page
+                const investigatorData = {
+                    investigation: investigateResult.investigation,
+                    metrics: investigateResult.metrics,
+                    rawMetrics: investigateResult.raw_metrics,
+                    timestamp: new Date().toISOString(),
+                    source: apiEndpoint
+                };
+
+                localStorage.setItem('investigatorData', JSON.stringify(investigatorData));
+
+                // Format investigation for display in sidebar
+                const investigationDisplay = `
+=== INVESTIGATION REPORT ===
+
+Status: ${investigateResult.investigation.status.toUpperCase()}
+
+${investigateResult.investigation.summary ? `
+Log Analysis:
+  Total Lines: ${investigateResult.investigation.summary.total_lines_scanned}
+  Errors: ${investigateResult.investigation.summary.error_count}
+  Critical: ${investigateResult.investigation.summary.critical_count}
+  Metric Issues: ${investigateResult.investigation.summary.metric_issues_count}` : ''}
+
+${investigateResult.investigation.metric_issues?.length > 0 ? `\nMetric Issues:\n${investigateResult.investigation.metric_issues.map((issue: string) => `  - ${issue}`).join('\n')}` : ''}
+
+✅ Investigation complete! Redirecting to Investigator Dashboard...
+                `.trim();
+
+                setMetricsData(investigationDisplay);
+
+                // Navigate to investigator page after a short delay
+                setTimeout(() => {
+                    router.push('/observability/investigator');
+                }, 2000);
             } else {
-                alert("Invalid Workflow. Connect Prometheus -> Health Agent.");
+                // No Health Agent or Investigator, show raw metrics
+                console.log('No agent connected, showing raw metrics');
+                setMetricsData(metricsResult.data);
             }
 
+            console.log('Data displayed successfully');
         } catch (error) {
-            console.error("Execution error:", error);
-            alert(`Execution failed: ${error instanceof Error ? error.message : String(error)}`);
+            console.error("Error in workflow:", error);
+            setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             setIsLoadingMetrics(false);
         }
     };
 
     return (
-        <div className="h-screen flex flex-col bg-background text-foreground">
+        <div className="h-screen flex flex-col">
             {/* Header */}
             <div className="border-b bg-background px-6 py-4 flex items-center gap-4 z-10">
                 <Button
-                    variant="ghost"
+                    variant="outline"
                     size="icon"
                     onClick={() => router.push("/pipeline")}
                 >
                     <ArrowLeft className="size-4" />
                 </Button>
                 <div className="flex-1">
-                    <h1 className="text-xl font-bold">Workflow Builder</h1>
-                    <p className="text-xs text-muted-foreground">
-                        Design your observability pipeline
+                    <h1 className="text-2xl font-bold text-black">Workflow Automation</h1>
+                    <p className="text-sm text-black">
+                        Drag nodes from the palette and connect them to build your workflow
                     </p>
                 </div>
-                <div className="flex gap-2">
-                    <Button variant="outline" size="sm">Save</Button>
-                    <Button
-                        variant="default"
-                        size="sm"
-                        onClick={executeWorkflow}
-                        disabled={isLoadingMetrics}
-                    >
-                        {isLoadingMetrics ? <><Loader2 className="mr-2 size-3 animate-spin" /> Executing</> : <><Play className="mr-2 size-3" /> Execute Workflow</>}
-                    </Button>
-                </div>
+                <Button
+                    variant="default"
+                    onClick={executeWorkflow}
+                    disabled={isLoadingMetrics}
+                    className="mr-2"
+                >
+                    {isLoadingMetrics ? "Loading..." : "Execute"}
+                </Button>
+                <Button variant="outline">Save Workflow</Button>
             </div>
 
             {/* Main Content */}
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar - Node Palette */}
-                <div className="w-64 border-r bg-muted/10 p-4 overflow-y-auto">
-                    <h2 className="font-semibold mb-4 text-xs uppercase tracking-wide text-muted-foreground">
-                        Nodes
+                <div className="w-64 border-r bg-muted/30 p-4 overflow-y-auto">
+                    <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-black">
+                        Node Palette
                     </h2>
                     <div className="space-y-3">
                         {nodeDefinitions.map((nodeDef) => {
                             const IconComponent = nodeDef.icon;
                             return (
-                                <div
+                                <Card
                                     key={nodeDef.type}
-                                    className="p-3 cursor-grab active:cursor-grabbing hover:bg-muted rounded-lg border border-transparent hover:border-border transition-all flex items-center gap-3"
+                                    className="p-4 cursor-grab active:cursor-grabbing hover:shadow-lg transition-all duration-200 hover:scale-102 bg-white border-2"
+                                    style={{
+                                        borderColor: nodeDef.color + "40",
+                                    }}
                                     draggable
                                     onDragStart={(e) => onDragStart(e, nodeDef.type)}
                                     onClick={() => addNode(nodeDef)}
                                 >
-                                    <div
-                                        className="p-2 rounded-md bg-background border shadow-sm"
-                                    >
-                                        <IconComponent
-                                            className="size-4"
-                                            style={{ color: nodeDef.color }}
-                                        />
-                                    </div>
-                                    <div className="flex flex-col">
-                                        <span className="font-medium text-sm">
+                                    <div className="flex items-center gap-3">
+                                        <div
+                                            className="p-2.5 rounded-lg shadow-sm"
+                                            style={{
+                                                backgroundColor: nodeDef.color + "25",
+                                            }}
+                                        >
+                                            <IconComponent
+                                                className="size-5"
+                                                style={{ color: nodeDef.color }}
+                                            />
+                                        </div>
+                                        <span className="font-semibold text-sm text-black">
                                             {nodeDef.label}
                                         </span>
-                                        <span className="text-[10px] text-muted-foreground">
-                                            {nodeDef.subLabel}
-                                        </span>
                                     </div>
-                                </div>
+                                </Card>
                             );
                         })}
+                    </div>
+                    <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                        <p className="text-xs text-black">
+                            💡 <strong>Tip:</strong> Drag nodes onto the canvas or click to add them. Connect nodes by dragging from one node's edge to another.
+                        </p>
                     </div>
                 </div>
 
                 {/* Center - React Flow Canvas */}
-                <div className="flex-1 bg-background relative">
+                <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100">
                     <ReactFlow
                         nodes={nodes}
                         edges={edges}
@@ -386,24 +526,43 @@ export default function AutomationPage() {
                         onDragOver={onDragOver}
                         nodeTypes={nodeTypes}
                         fitView
-                        className="bg-background"
-                        isValidConnection={() => true}
+                        className="bg-gradient-to-br from-gray-50 to-gray-100"
                         defaultEdgeOptions={{
                             animated: true,
-                            style: { stroke: '#3b82f6', strokeWidth: 2 }, // Bright Blue edges
+                            style: { stroke: '#94a3b8', strokeWidth: 2 },
                         }}
                     >
-                        <Controls className="!bg-[#1e1e1e] !border !border-gray-700 !shadow-md [&>button]:!bg-[#1e1e1e] [&>button]:!fill-white [&>button]:!text-white [&>button:hover]:!bg-[#333] [&>button]:!border-b [&>button]:!border-gray-700" />
+                        <Controls className="bg-white shadow-lg rounded-lg border-2 border-gray-200" />
                         <MiniMap
                             nodeColor={(node) => {
                                 return (node.data.color as string) || "#3b82f6";
                             }}
-                            className="!bg-[#1e1e1e] !border !border-gray-700 !shadow-md"
-                            maskColor="rgba(0, 0, 0, 0.7)"
+                            className="bg-white border-2 border-gray-300 shadow-lg rounded-lg"
                         />
-                        <Background variant={BackgroundVariant.Dots} gap={20} size={1.5} color="#ffffff" className="opacity-20" />
+                        <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} className="bg-gray-50" />
                     </ReactFlow>
                 </div>
+
+                {/* Right Sidebar - Metrics Display */}
+                {showMetrics && (
+                    <div className="w-96 border-l bg-white p-4 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="font-semibold text-lg text-black">Metrics Data</h2>
+                            <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setShowMetrics(false)}
+                            >
+                                Close
+                            </Button>
+                        </div>
+                        <div className="bg-gray-50 rounded-lg p-4 border">
+                            <pre className="text-xs whitespace-pre-wrap break-words font-mono text-black">
+                                {metricsData || "No data available"}
+                            </pre>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
