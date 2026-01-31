@@ -367,11 +367,11 @@ export default function UnifiedDashboardPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg text-center">
-                        <h3 className="text-3xl font-bold text-white mb-1">{res.summary.error_count}</h3>
+                        <h3 className="text-3xl font-bold text-white mb-1">{res.summary?.error_count || 0}</h3>
                         <p className="text-zinc-500 text-sm uppercase tracking-wider">Total Errors</p>
                     </div>
                     <div className="bg-zinc-900 border border-zinc-800 p-6 rounded-lg text-center">
-                        <h3 className="text-3xl font-bold text-red-500 mb-1">{res.summary.critical_count}</h3>
+                        <h3 className="text-3xl font-bold text-red-500 mb-1">{res.summary?.critical_count || 0}</h3>
                         <p className="text-red-500/70 text-sm uppercase tracking-wider">Critical Failures</p>
                     </div>
                 </div>

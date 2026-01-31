@@ -66,7 +66,9 @@ class ReliabilityAgent:
 
         return {
             "reliability_score": round(reliability_score, 2),
-            "status": "reliable" if reliability_score > 0.8 else "at_risk" if reliability_score > 0.5 else "unreliable",
+            "risk_score": round((1.0 - reliability_score) * 10, 1), # Scale 0-10 for UI
+            "reliability_status": "stable" if reliability_score > 0.8 else "at_risk" if reliability_score > 0.5 else "unreliable",
+            "status": "success", # For common Agent interface
             "predicted_risks": risks,
             "timestamp": int(time.time())
         }

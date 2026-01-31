@@ -1,8 +1,11 @@
+import logging
 from fastapi import APIRouter, HTTPException, Query, Depends
 from typing import Optional, List
 from app.services.prometheus_ingestion import prometheus_service
 from app.services.normalization import normalization_service
 from app.services.agent_input import agent_input_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(
     prefix="/agents",
@@ -43,7 +46,7 @@ def get_health_agent_analysis(url: Optional[str] = Query(None, description="Prom
             raw_metrics = prometheus_service.parse_metrics(raw_text)
             normalized = normalization_service.normalize_metrics(raw_metrics)
         except Exception as e:
-            print(f"Health Check Warning: Failed to fetch metrics: {e}")
+            logger.warning(f"Health Check Warning: Failed to fetch metrics from {target_url} ({e}). Using mock data.")
             # Mock Data for verification/fallback
             normalized = [
                 {"metric": "cpu_load_1m", "value": 0.1, "timestamp": 123},
@@ -69,7 +72,13 @@ def investigate_logs(
         from app.services.investigator_agent import investigator_agent
         
         # Default to a generic location if not provided
-        target_log_path = log_path if log_path else "app.log"
+        import os
+        if log_path:
+            target_log_path = log_path
+        elif os.path.exists("simulated_outage.log"):
+            target_log_path = "simulated_outage.log"
+        else:
+            target_log_path = "app.log"
         
         # Try to get metrics, but don't fail the whole investigation if metrics fail
         normalized = []
@@ -80,7 +89,7 @@ def investigate_logs(
             normalized = normalization_service.normalize_metrics(raw_metrics)
         except Exception as metric_error:
             # Just log internally or ignore, we proceed with log investigation
-            print(f"Warning: Could not fetch/process metrics for investigation: {metric_error}")
+            logger.warning(f"Warning: Could not fetch/process metrics for investigation: {metric_error}")
             normalized = []
         
         report = investigator_agent.investigate(target_log_path, normalized_metrics=normalized)
@@ -104,7 +113,7 @@ def get_reliability_prediction(url: Optional[str] = Query(None, description="Pro
             raw_metrics = prometheus_service.parse_metrics(raw_text)
             normalized = normalization_service.normalize_metrics(raw_metrics)
         except Exception as fetch_error:
-            print(f"Warning: Failed to fetch metrics: {fetch_error}")
+            logger.warning(f"Warning: Failed to fetch metrics: {fetch_error}. Using fallback MOCK data.")
             # Fallback to Mock Data for demonstration/verification purposes
             normalized = [
                 {"metric": "cpu_load_1m", "value": 0.85, "timestamp": 1234567890},
@@ -136,11 +145,12 @@ def get_alert_analysis(
             raw_metrics = prometheus_service.parse_metrics(raw_text)
             normalized = normalization_service.normalize_metrics(raw_metrics)
         except Exception as fetch_error:
-            print(f"Warning: Failed to fetch metrics: {fetch_error}")
+            logger.warning(f"Warning: Failed to fetch metrics: {fetch_error}. Using fallback MOCK data.")
             # Mock data so we can still test the LLM integration if metrics fail
             normalized = [
                 {"metric": "cpu_load_1m", "value": 0.95, "timestamp": 1234567890},
-                {"metric": "memory_used_percent", "value": 0.88, "timestamp": 1234567890}
+                {"metric": "memory_used_percent", "value": 0.88, "timestamp": 1234567890},
+                {"metric": "disk_free_percent", "value": 0.05, "timestamp": 1234567890}
             ]
             
         alert_report = alert_agent.analyze_alert(normalized, api_key=key)
@@ -162,7 +172,14 @@ def run_supervisor(
         from app.services.supervisor_agent import supervisor_agent
         
         target_url = url if url else "http://localhost:9090/metrics"
-        target_log = log_path if log_path else "app.log"
+        
+        import os
+        if log_path:
+            target_log = log_path
+        elif os.path.exists("simulated_outage.log"):
+            target_log = "simulated_outage.log"
+        else:
+            target_log = "app.log"
         
         # Centralized Metric Fetching
         try:
@@ -170,11 +187,12 @@ def run_supervisor(
             raw_metrics = prometheus_service.parse_metrics(raw_text)
             normalized = normalization_service.normalize_metrics(raw_metrics)
         except Exception as fetch_error:
-            print(f"Supervisor Warning: Failed to fetch metrics: {fetch_error}")
+            logger.warning(f"Supervisor Warning: Failed to fetch metrics: {fetch_error}. Using MOCK data.")
             # Mock data for demonstration
             normalized = [
                 {"metric": "cpu_load_1m", "value": 0.85, "timestamp": 1234567890},
-                {"metric": "memory_used_percent", "value": 0.60, "timestamp": 1234567890}
+                {"metric": "memory_used_percent", "value": 0.60, "timestamp": 1234567890},
+                {"metric": "disk_free_percent", "value": 0.15, "timestamp": 1234567890}
             ]
             
         report = supervisor_agent.supervise(
@@ -185,4 +203,6 @@ def run_supervisor(
         )
         return report
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        logger.error(f"Supervisor Error: {str(e)}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")

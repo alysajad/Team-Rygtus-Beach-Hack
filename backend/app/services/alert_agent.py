@@ -3,6 +3,13 @@ import requests
 import json
 import time
 from app.config import settings
+from pathlib import Path
+import os
+from dotenv import load_dotenv
+
+# Robustly load .env from app directory
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 class AlertAgent:
     def analyze_alert(self, normalized_metrics: List[Dict[str, Any]], api_key: str = None) -> Dict[str, Any]:
@@ -13,7 +20,7 @@ class AlertAgent:
         
         # Use provided key or fallback to setting
         
-        key = api_key if api_key else settings.GEMINI_API_KEY
+        key = os.getenv("GEMINI_API_KEY")
         
         if not key:
             return {

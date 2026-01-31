@@ -2,7 +2,14 @@ from typing import List, Dict, Any, Optional
 import requests
 import json
 import time
+import os
 from app.config import settings
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Robustly load .env from app directory
+env_path = Path(__file__).resolve().parent.parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 # Import other agents
 from app.services.health_agent import health_agent
@@ -43,7 +50,7 @@ class SupervisorAgent:
 
         # 2. Synthesize with Gemini
         # -------------------------
-        key = api_key if api_key else settings.GEMINI_API_KEY
+        key = os.getenv("GEMINI_API_KEY")
         
         synthesis = {
             "overview_report": "Synthesis failed or key missing.",
