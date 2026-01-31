@@ -6,6 +6,7 @@ from app.services.prometheus_ingestion import prometheus_service
 from app.services.normalization import normalization_service
 from app.services.health_agent import health_agent
 from app.services.investigator_agent import investigator_agent
+from app.services.reliabilit_agent import reliability_agent
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -168,3 +169,34 @@ async def investigate_logs_directly(request: LogInvestigationRequest):
     except Exception as e:
         logger.error(f"Error during log investigation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error during log investigation: {str(e)}")
+
+@router.post("/analyze-reliability")
+async def analyze_reliability(request: HealthAnalysisRequest):
+    """
+    Analyzes Prometheus metrics for reliability predictions.
+    Uses prometheus_ingestion, normalization, and reliability_agent services.
+    """
+    try:
+        logger.info("Starting reliability analysis")
+        
+        # Parse raw Prometheus metrics
+        parsed_metrics = prometheus_service.parse_metrics(request.metrics_data)
+        logger.info(f"Parsed {len(parsed_metrics)} metrics")
+        
+        # Normalize metrics
+        normalized_metrics = normalization_service.normalize_metrics(parsed_metrics)
+        logger.info(f"Normalized to {len(normalized_metrics)} key metrics")
+        
+        # Analyze reliability
+        reliability_result = reliability_agent.analyze_reliability(normalized_metrics)
+        logger.info(f"Reliability score: {reliability_result['reliability_score']}")
+        
+        return {
+            "success": True,
+            "reliability": reliability_result,
+            "metrics": normalized_metrics,
+            "raw_metrics": request.metrics_data
+        }
+    except Exception as e:
+        logger.error(f"Error analyzing reliability: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error analyzing reliability: {str(e)}")

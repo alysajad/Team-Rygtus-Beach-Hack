@@ -36,6 +36,7 @@ import {
     MessageCircle,
     FileText,
     Shield,
+    TrendingUp,
 } from "lucide-react";
 
 // Custom Node Component
@@ -159,6 +160,12 @@ const nodeDefinitions = [
         label: "Investigator Agent",
         icon: Shield,
         color: "#eab308",
+    },
+    {
+        type: "reliabilityAgent",
+        label: "Reliability Agent",
+        icon: TrendingUp,
+        color: "#10b981",
     },
 ];
 
@@ -351,6 +358,106 @@ Log Analysis:
                     // Navigate to investigator page after a short delay
                     setTimeout(() => {
                         router.push('/observability/investigator');
+                    }, 2000);
+
+                    setIsLoadingMetrics(false);
+                    return; // Exit early for this workflow
+                } catch (error) {
+                    console.error("Error in workflow:", error);
+                    setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                    setIsLoadingMetrics(false);
+                    return;
+                }
+            }
+        }
+
+        // Check for Server Logs → Reliability Agent workflow (using Server node for metrics)
+        const reliabilityNode = nodes.find(n => n.data.label === "Reliability Agent");
+        if (serverNode && reliabilityNode) {
+            const isServerReliabilityConnected = edges.some(
+                edge =>
+                    (edge.source === serverNode.id && edge.target === reliabilityNode.id) ||
+                    (edge.source === reliabilityNode.id && edge.target === serverNode.id)
+            );
+
+            if (isServerReliabilityConnected) {
+                const apiEndpoint = serverNode.data.apiEndpoint;
+                if (!apiEndpoint) {
+                    alert("Please enter an API endpoint in the Server node");
+                    return;
+                }
+
+                setIsLoadingMetrics(true);
+                setShowMetrics(true);
+
+                console.log('Analyzing reliability from:', apiEndpoint);
+
+                try {
+                    // Step 1: Fetch metrics from server
+                    const metricsResponse = await fetch('http://localhost:8000/automation/metrics', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            endpoint: apiEndpoint
+                        })
+                    });
+
+                    if (!metricsResponse.ok) {
+                        const errorData = await metricsResponse.json();
+                        throw new Error(errorData.detail || 'Failed to fetch metrics');
+                    }
+
+                    const metricsResult = await metricsResponse.json();
+
+                    // Step 2: Analyze reliability
+                    const reliabilityResponse = await fetch('http://localhost:8000/automation/analyze-reliability', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            metrics_data: metricsResult.data
+                        })
+                    });
+
+                    if (!reliabilityResponse.ok) {
+                        const errorData = await reliabilityResponse.json();
+                        throw new Error(errorData.detail || 'Failed to analyze reliability');
+                    }
+
+                    const reliabilityResult = await reliabilityResponse.json();
+                    console.log('Reliability analysis result:', reliabilityResult);
+
+                    // Store data for reliability observability page
+                    const reliabilityData = {
+                        reliability: reliabilityResult.reliability,
+                        metrics: reliabilityResult.metrics,
+                        rawMetrics: reliabilityResult.raw_metrics,
+                        timestamp: new Date().toISOString(),
+                        source: apiEndpoint
+                    };
+
+                    localStorage.setItem('reliabilityData', JSON.stringify(reliabilityData));
+
+                    // Format reliability for display in sidebar
+                    const reliabilityDisplay = `
+=== RELIABILITY ANALYSIS ===
+
+Score: ${reliabilityResult.reliability.reliability_score}
+Status: ${reliabilityResult.reliability.status.toUpperCase()}
+
+${reliabilityResult.reliability.predicted_risks?.length > 0 ? `\nPredicted Risks:\n${reliabilityResult.reliability.predicted_risks.map((risk: any) => `  - ${risk.type} (${Math.round(risk.probability * 100)}% probability)`).join('\n')}` : '\nNo risks predicted'}
+
+✅ Analysis complete! Redirecting to Reliability Dashboard...
+                    `.trim();
+
+                    setMetricsData(reliabilityDisplay);
+
+                    // Navigate to reliability page after a short delay
+                    setTimeout(() => {
+                        router.push('/observability/reliability');
                     }, 2000);
 
                     setIsLoadingMetrics(false);
