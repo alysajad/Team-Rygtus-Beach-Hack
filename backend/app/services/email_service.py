@@ -139,16 +139,14 @@ Sent from: {self.sender_email}
                 "message": f"Failed to send email: {str(e)}"
             }
     
-    def send_custom_email(self, to_email: str, subject: str, body: str, alert_data: Dict[str, Any] = None) -> Dict[str, Any]:
+    def send_custom_email(self, to_email: str, subject: str, body: str) -> Dict[str, Any]:
         """
         Sends a custom email with user-provided subject and body.
-        Optionally includes alert information if alert_data is provided.
         
         Args:
             to_email: Recipient email address
             subject: Email subject line
             body: Email message body
-            alert_data: Optional alert analysis data with issue, why, suggestion
             
         Returns:
             Dict with success status and message
@@ -170,122 +168,41 @@ Sent from: {self.sender_email}
             message["From"] = self.sender_email
             message["To"] = to_email
             
-            # Build HTML email body
-            if alert_data:
-                # Include alert information with custom message
-                issue = alert_data.get("issue", "No issue specified")
-                why = alert_data.get("why", "No cause specified")
-                suggestion = alert_data.get("suggestion", "No suggestion provided")
-                
-                html_body = f"""
-                <html>
-                    <head>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                            .header {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
-                            .content {{ padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0; margin-bottom: 20px; }}
-                            .alert-box {{ padding: 15px; margin: 15px 0; border-radius: 8px; border-left: 4px solid; }}
-                            .issue {{ background: #fee; border-left-color: #dc3545; }}
-                            .cause {{ background: #e7f3ff; border-left-color: #0d6efd; }}
-                            .suggestion {{ background: #d1f2eb; border-left-color: #198754; }}
-                            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }}
-                            h2 {{ margin: 0 0 10px 0; font-size: 18px; }}
-                            h3 {{ margin: 0 0 10px 0; font-size: 16px; }}
-                            p {{ margin: 0 0 10px 0; white-space: pre-wrap; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <div class="header">
-                                <h2>📧 {subject}</h2>
-                            </div>
-                            
-                            <div class="content">
-                                <p>{body}</p>
-                            </div>
-                            
-                            <h3 style="margin: 20px 0 10px 0; color: #dc3545;">🔔 Alert Details</h3>
-                            
-                            <div class="alert-box issue">
-                                <h3>⚠️ Issue Detected</h3>
-                                <p>{issue}</p>
-                            </div>
-                            
-                            <div class="alert-box cause">
-                                <h3>💬 Root Cause</h3>
-                                <p>{why}</p>
-                            </div>
-                            
-                            <div class="alert-box suggestion">
-                                <h3>🛡️ Recommended Action</h3>
-                                <p>{suggestion}</p>
-                            </div>
-                            
-                            <div class="footer">
-                                <p>This is an automated email from your workflow automation system.</p>
-                                <p>Sent from: {self.sender_email}</p>
-                            </div>
+            # Create HTML email body with similar styling to alert emails
+            html_body = f"""
+            <html>
+                <head>
+                    <style>
+                        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                        .header {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
+                        .content {{ padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0; }}
+                        .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }}
+                        h2 {{ margin: 0 0 10px 0; font-size: 18px; }}
+                        p {{ margin: 0 0 10px 0; white-space: pre-wrap; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="container">
+                        <div class="header">
+                            <h2>📧 {subject}</h2>
                         </div>
-                    </body>
-                </html>
-                """
-                
-                text_body = f"""
-{subject}
-
-{body}
-
---- Alert Details ---
-
-⚠️ Issue Detected:
-{issue}
-
-💬 Root Cause:
-{why}
-
-🛡️ Recommended Action:
-{suggestion}
-
----
-This is an automated email from your workflow automation system.
-Sent from: {self.sender_email}
-                """
-            else:
-                # Custom email without alert data
-                html_body = f"""
-                <html>
-                    <head>
-                        <style>
-                            body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                            .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                            .header {{ background: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px; }}
-                            .content {{ padding: 20px; background: #ffffff; border-radius: 8px; border: 1px solid #e0e0e0; }}
-                            .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; font-size: 12px; color: #666; }}
-                            h2 {{ margin: 0 0 10px 0; font-size: 18px; }}
-                            p {{ margin: 0 0 10px 0; white-space: pre-wrap; }}
-                        </style>
-                    </head>
-                    <body>
-                        <div class="container">
-                            <div class="header">
-                                <h2>📧 {subject}</h2>
-                            </div>
-                            
-                            <div class="content">
-                                <p>{body}</p>
-                            </div>
-                            
-                            <div class="footer">
-                                <p>This is an automated email from your workflow automation system.</p>
-                                <p>Sent from: {self.sender_email}</p>
-                            </div>
+                        
+                        <div class="content">
+                            <p>{body}</p>
                         </div>
-                    </body>
-                </html>
-                """
-                
-                text_body = f"""
+                        
+                        <div class="footer">
+                            <p>This is an automated email from your workflow automation system.</p>
+                            <p>Sent from: {self.sender_email}</p>
+                        </div>
+                    </div>
+                </body>
+            </html>
+            """
+            
+            # Create plain text fallback
+            text_body = f"""
 {subject}
 
 {body}
@@ -293,7 +210,7 @@ Sent from: {self.sender_email}
 ---
 This is an automated email from your workflow automation system.
 Sent from: {self.sender_email}
-                """
+            """
             
             # Attach both HTML and plain text versions
             part1 = MIMEText(text_body, "plain")

@@ -315,13 +315,12 @@ async def send_alert_email(request: SendEmailRequest):
         
         # Determine email type and send accordingly
         if request.subject and request.body:
-            # Custom email mode - include alert_data if provided
+            # Custom email mode
             logger.info("Sending custom email with subject and body")
             result = email_service.send_custom_email(
                 to_email=request.to_email,
                 subject=request.subject,
-                body=request.body,
-                alert_data=request.alert_data  # Pass alert data if available
+                body=request.body
             )
         elif request.alert_data:
             # Alert-based email mode
