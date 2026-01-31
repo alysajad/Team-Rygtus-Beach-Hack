@@ -14,7 +14,8 @@ import {
     Clock,
     FileText,
     Activity,
-    TrendingUp
+    TrendingUp,
+    Bell
 } from "lucide-react";
 
 interface AgentResult {
@@ -60,6 +61,7 @@ export default function UnifiedDashboardPage() {
             case "healthAgent": return <Shield className="size-5 text-green-400" />;
             case "investigatorAgent": return <Shield className="size-5 text-yellow-400" />;
             case "reliabilityAgent": return <TrendingUp className="size-5 text-emerald-400" />;
+            case "alertAgent": return <Bell className="size-5 text-red-400" />;
             default: return <Activity className="size-5 text-blue-400" />;
         }
     };

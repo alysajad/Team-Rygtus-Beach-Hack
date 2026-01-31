@@ -7,6 +7,7 @@ from app.services.normalization import normalization_service
 from app.services.health_agent import health_agent
 from app.services.investigator_agent import investigator_agent
 from app.services.reliabilit_agent import reliability_agent
+from app.services.alert_agent import alert_agent
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -211,3 +212,34 @@ async def analyze_reliability(request: HealthAnalysisRequest):
     except Exception as e:
         logger.error(f"Error analyzing reliability: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error analyzing reliability: {str(e)}")
+
+@router.post("/analyze-alert")
+async def analyze_alert(request: HealthAnalysisRequest):
+    """
+    Analyzes Prometheus metrics using AI (Gemini) to generate alerts and suggestions.
+    Uses prometheus_ingestion, normalization, and alert_agent services.
+    """
+    try:
+        logger.info("Starting alert analysis")
+        
+        # Parse raw Prometheus metrics
+        parsed_metrics = prometheus_service.parse_metrics(request.metrics_data)
+        logger.info(f"Parsed {len(parsed_metrics)} metrics")
+        
+        # Normalize metrics
+        normalized_metrics = normalization_service.normalize_metrics(parsed_metrics)
+        logger.info(f"Normalized to {len(normalized_metrics)} key metrics")
+        
+        # Analyze with Alert Agent (uses Gemini AI)
+        alert_result = alert_agent.analyze_alert(normalized_metrics)
+        logger.info(f"Alert analysis status: {alert_result.get('status')}")
+        
+        return {
+            "success": True,
+            "alert": alert_result,
+            "metrics": normalized_metrics,
+            "raw_metrics": request.metrics_data
+        }
+    except Exception as e:
+        logger.error(f"Error analyzing alert: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error analyzing alert: {str(e)}")

@@ -168,6 +168,12 @@ const nodeDefinitions = [
         icon: TrendingUp,
         color: "#10b981",
     },
+    {
+        type: "alertAgent",
+        label: "Alert Agent",
+        icon: Bell,
+        color: "#ef4444",
+    },
 ];
 
 export default function AutomationPage() {
@@ -175,9 +181,8 @@ export default function AutomationPage() {
     const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
     const [nodeId, setNodeId] = useState(0);
-    const [metricsData, setMetricsData] = useState<string>("");
-    const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
-    const [showMetrics, setShowMetrics] = useState(false);
+    const [sidebarContent, setSidebarContent] = useState<any>(null);
+    const [showSidebar, setShowSidebar] = useState(false);
 
     const onConnect = useCallback(
         (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -281,9 +286,8 @@ export default function AutomationPage() {
 
     // Execute workflow - run all matching distinct patterns
     const executeWorkflow = async () => {
-        setIsLoadingMetrics(true);
-        setShowMetrics(false); // Hide side panel, we will redirect
-        setMetricsData("");
+        setShowSidebar(false); // Hide sidebar during execution
+        setSidebarContent(null);
 
         const executionResults: any[] = [];
 
@@ -294,6 +298,7 @@ export default function AutomationPage() {
         const healthAgentNode = nodes.find(n => n.data.label === "Health Agent");
         const investigatorNode = nodes.find(n => n.data.label === "Investigator Agent");
         const reliabilityNode = nodes.find(n => n.data.label === "Reliability Agent");
+        const alertAgentNode = nodes.find(n => n.data.label === "Alert Agent");
 
         // Validation Checks
         if (serverNode && !serverNode.data.apiEndpoint) {
@@ -423,7 +428,147 @@ export default function AutomationPage() {
                 }
             }
 
-            // --- Flow 3: Prometheus -> Health / Investigator ---
+            // --- Flow 4: Server → Alert Agent ---
+            if (serverNode && alertAgentNode) {
+                const isConnected = edges.some(edge =>
+                    (edge.source === serverNode.id && edge.target === alertAgentNode.id) ||
+                    (edge.source === alertAgentNode.id && edge.target === serverNode.id)
+                );
+
+                if (isConnected) {
+                    console.log("[Flow 4] Executing Server → Alert Agent...");
+                    try {
+                        const endpoint = serverNode.data.apiEndpoint;
+                        if (!endpoint) throw new Error("No API endpoint in Server node");
+
+                        // Fetch metrics first
+                        const metricsRes = await fetch('http://localhost:8000/automation/metrics', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ endpoint })
+                        });
+
+                        if (!metricsRes.ok) throw new Error("Failed to fetch metrics");
+                        const metricsData = await metricsRes.json();
+
+                        // Analyze with Alert Agent (uses Gemini AI)
+                        const alertRes = await fetch('http://localhost:8000/automation/analyze-alert', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ metrics_data: metricsData.data })
+                        });
+
+                        if (!alertRes.ok) throw new Error("Alert analysis failed");
+                        const alertData = await alertRes.json();
+
+                        // Set sidebar content with alert details
+                        if (alertData.alert && alertData.alert.status === "success") {
+                            setSidebarContent({
+                                agentName: "Alert Agent",
+                                agentType: "alertAgent",
+                                data: alertData.alert.analysis,
+                                timestamp: alertData.alert.timestamp
+                            });
+                            setShowSidebar(true);
+                        }
+
+                        executionResults.push({
+                            agentIds: [serverNode.id, alertAgentNode.id],
+                            agentName: "Alert Agent",
+                            agentType: "alertAgent",
+                            status: alertData.alert.status === "success" ? "success" : "warning",
+                            summary: alertData.alert.analysis ?
+                                `Issue: ${alertData.alert.analysis.issue}\nSuggestion: ${alertData.alert.analysis.suggestion}` :
+                                "Alert analysis completed",
+                            details: alertData.alert,
+                            timestamp: new Date().toISOString()
+                        });
+
+                    } catch (e) {
+                        console.error("[Flow 4] Error:", e);
+                        executionResults.push({
+                            agentIds: [serverNode.id, alertAgentNode.id],
+                            agentName: "Alert Agent",
+                            agentType: "alertAgent",
+                            status: "error",
+                            summary: `Alert analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+
+            // --- Flow 4b: Server Logs → Alert Agent ---
+            if (serverLogsNode && alertAgentNode) {
+                const isConnected = edges.some(edge =>
+                    (edge.source === serverLogsNode.id && edge.target === alertAgentNode.id) ||
+                    (edge.source === alertAgentNode.id && edge.target === serverLogsNode.id)
+                );
+
+                if (isConnected) {
+                    console.log("[Flow 4b] Executing Server Logs → Alert Agent...");
+                    try {
+                        const logData = serverLogsNode.data.logData;
+                        if (!logData) throw new Error("No log data provided in Server Logs node");
+
+                        // For logs, we'll use the investigator endpoint which can analyze text
+                        // Then format it as an alert
+                        const res = await fetch('http://localhost:8000/automation/investigate-logs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log_data: logData })
+                        });
+
+                        if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.detail || "Log analysis failed");
+                        }
+
+                        const data = await res.json();
+
+                        // Transform investigation result to alert format
+                        const alertAnalysis = {
+                            issue: data.investigation.message || "Log Analysis Complete",
+                            why: `Analysis of server logs revealed: ${data.investigation.status}`,
+                            suggestion: data.investigation.errors?.length > 0
+                                ? `Address the following errors: ${data.investigation.errors.join(", ")}`
+                                : "Continue monitoring logs for any anomalies"
+                        };
+
+                        // Set sidebar content with alert details
+                        setSidebarContent({
+                            agentName: "Alert Agent (Logs)",
+                            agentType: "alertAgent",
+                            data: alertAnalysis,
+                            timestamp: Math.floor(Date.now() / 1000)
+                        });
+                        setShowSidebar(true);
+
+                        executionResults.push({
+                            agentIds: [serverLogsNode.id, alertAgentNode.id],
+                            agentName: "Alert Agent (Logs)",
+                            agentType: "alertAgent",
+                            status: data.investigation.errors?.length > 0 ? "warning" : "success",
+                            summary: `Issue: ${alertAnalysis.issue}\nSuggestion: ${alertAnalysis.suggestion}`,
+                            details: { ...data.investigation, alertAnalysis },
+                            timestamp: new Date().toISOString()
+                        });
+
+                    } catch (e) {
+                        console.error("[Flow 4b] Error:", e);
+                        executionResults.push({
+                            agentIds: [serverLogsNode.id, alertAgentNode.id],
+                            agentName: "Alert Agent (Logs)",
+                            agentType: "alertAgent",
+                            status: "error",
+                            summary: `Log analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
+
+            // --- Flow 5: Prometheus -> Health / Investigator ---
             // Only strictly requires Prometheus + connection to Agent. Server node is optional if Prom URL is direct?
             // Existing logic checked for Server node supplying the endpoint. We will maintain that dependency.
             if (serverNode && prometheusNode) {
@@ -555,8 +700,6 @@ export default function AutomationPage() {
         } catch (error) {
             console.error("Global Execution Error:", error);
             alert(`Execution error: ${error instanceof Error ? error.message : String(error)}`);
-        } finally {
-            setIsLoadingMetrics(false);
         }
     };
 
@@ -655,10 +798,9 @@ export default function AutomationPage() {
                 <Button
                     variant="default"
                     onClick={executeWorkflow}
-                    disabled={isLoadingMetrics}
                     className="mr-2"
                 >
-                    {isLoadingMetrics ? "Loading..." : "Execute"}
+                    Execute
                 </Button>
                 <Button variant="outline">Save Workflow</Button>
             </div>
@@ -750,24 +892,67 @@ export default function AutomationPage() {
                     </div>
                 </div>
 
-                {/* Right Sidebar - Metrics Display */}
-                {showMetrics && (
-                    <div className="w-96 border-l bg-white p-4 overflow-y-auto">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="font-semibold text-lg text-black">Metrics Data</h2>
+                {/* Right Sidebar - Agent Output Display */}
+                {showSidebar && sidebarContent && (
+                    <div className="w-96 border-l bg-white p-6 overflow-y-auto">
+                        <div className="flex items-center justify-between mb-6">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 rounded-lg bg-red-50">
+                                    <Bell className="size-5 text-red-500" />
+                                </div>
+                                <div>
+                                    <h2 className="font-semibold text-lg text-black">{sidebarContent.agentName}</h2>
+                                    <p className="text-xs text-gray-500">
+                                        {new Date(sidebarContent.timestamp * 1000).toLocaleString()}
+                                    </p>
+                                </div>
+                            </div>
                             <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => setShowMetrics(false)}
+                                onClick={() => setShowSidebar(false)}
                             >
                                 Close
                             </Button>
                         </div>
-                        <div className="bg-gray-50 rounded-lg p-4 border">
-                            <pre className="text-xs whitespace-pre-wrap break-words font-mono text-black">
-                                {metricsData || "No data available"}
-                            </pre>
-                        </div>
+
+                        {/* Alert Analysis Display */}
+                        {sidebarContent.data && (
+                            <div className="space-y-4">
+                                {/* Issue Card */}
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-2 mb-2">
+                                        <AlertTriangle className="size-5 text-red-600 mt-0.5" />
+                                        <h3 className="font-semibold text-red-900">Issue Detected</h3>
+                                    </div>
+                                    <p className="text-sm text-red-800 leading-relaxed">
+                                        {sidebarContent.data.issue}
+                                    </p>
+                                </div>
+
+                                {/* Why/Cause Card */}
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-2 mb-2">
+                                        <MessageCircle className="size-5 text-blue-600 mt-0.5" />
+                                        <h3 className="font-semibold text-blue-900">Root Cause</h3>
+                                    </div>
+                                    <p className="text-sm text-blue-800 leading-relaxed">
+                                        {sidebarContent.data.why}
+                                    </p>
+                                </div>
+
+                                {/* Suggestion Card */}
+                                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                                    <div className="flex items-start gap-2 mb-2">
+                                        <Shield className="size-5 text-green-600 mt-0.5" />
+                                        <h3 className="font-semibold text-green-900">Recommended Action</h3>
+                                    </div>
+                                    <p className="text-sm text-green-800 leading-relaxed">
+                                        {sidebarContent.data.suggestion}
+                                    </p>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 )}
             </div>
