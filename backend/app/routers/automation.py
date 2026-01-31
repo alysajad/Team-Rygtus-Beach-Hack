@@ -127,3 +127,44 @@ async def investigate_metrics(request: HealthAnalysisRequest):
     except Exception as e:
         logger.error(f"Error during investigation: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error during investigation: {str(e)}")
+
+class LogInvestigationRequest(BaseModel):
+    log_data: str
+
+@router.post("/investigate-logs")
+async def investigate_logs_directly(request: LogInvestigationRequest):
+    """
+    Investigates log data directly without Prometheus metrics.
+    Analyzes the provided log text for errors and critical issues.
+    """
+    try:
+        logger.info("Starting direct log investigation")
+        
+        # Write log data to a temporary file for investigation
+        import tempfile
+        import os
+        
+        with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as temp_log:
+            temp_log.write(request.log_data)
+            temp_log_path = temp_log.name
+        
+        try:
+            # Investigate the temporary log file
+            investigation_result = investigator_agent.investigate(
+                log_path=temp_log_path,
+                normalized_metrics=None  # No metrics for direct log investigation
+            )
+            logger.info(f"Investigation status: {investigation_result.get('status')}")
+            
+            return {
+                "success": True,
+                "investigation": investigation_result
+            }
+        finally:
+            # Clean up temporary file
+            if os.path.exists(temp_log_path):
+                os.unlink(temp_log_path)
+                
+    except Exception as e:
+        logger.error(f"Error during log investigation: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error during log investigation: {str(e)}")

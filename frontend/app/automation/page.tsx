@@ -42,6 +42,7 @@ import {
 const CustomNode = ({ data, id }: { data: any; id: string }) => {
     const IconComponent = data.icon;
     const isServerNode = data.label === "Server";
+    const isServerLogsNode = data.label === "Server Logs";
 
     return (
         <div className="px-5 py-4 shadow-xl rounded-xl border-2 bg-gradient-to-br from-white to-gray-50 min-w-[180px] relative hover:shadow-2xl transition-all duration-200 hover:scale-105"
@@ -81,6 +82,19 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
                 </div>
             )}
 
+            {/* Log Input for Server Logs Node */}
+            {isServerLogsNode && (
+                <div className="mt-3">
+                    <textarea
+                        placeholder="Paste server logs here..."
+                        value={data.logData || ""}
+                        onChange={(e) => data.onLogChange?.(id, e.target.value)}
+                        className="text-xs p-2 border rounded w-full h-24 text-black resize-none"
+                        onClick={(e) => e.stopPropagation()}
+                    />
+                </div>
+            )}
+
             {/* Output Handle (right side) */}
             <Handle
                 type="source"
@@ -103,6 +117,12 @@ const nodeDefinitions = [
         label: "Server",
         icon: Server,
         color: "#3b82f6",
+    },
+    {
+        type: "serverLogs",
+        label: "Server Logs",
+        icon: FileText,
+        color: "#6366f1",
     },
     {
         type: "telemetry",
@@ -137,7 +157,7 @@ const nodeDefinitions = [
     {
         type: "logAnalyzer",
         label: "Investigator Agent",
-        icon: FileText,
+        icon: Shield,
         color: "#eab308",
     },
 ];
@@ -167,6 +187,17 @@ export default function AutomationPage() {
         );
     }, [setNodes]);
 
+    // Handle log data change for server logs nodes
+    const handleLogChange = useCallback((nodeId: string, logData: string) => {
+        setNodes((nds) =>
+            nds.map((node) =>
+                node.id === nodeId
+                    ? { ...node, data: { ...node.data, logData } }
+                    : node
+            )
+        );
+    }, [setNodes]);
+
     // Add node to canvas
     const addNode = (nodeType: typeof nodeDefinitions[0]) => {
         const newNode: Node = {
@@ -181,7 +212,9 @@ export default function AutomationPage() {
                 icon: nodeType.icon,
                 color: nodeType.color,
                 apiEndpoint: "",
+                logData: "",
                 onApiChange: handleApiChange,
+                onLogChange: handleLogChange,
             },
         };
         setNodes((nds) => [...nds, newNode]);
@@ -221,7 +254,9 @@ export default function AutomationPage() {
                     icon: nodeDef.icon,
                     color: nodeDef.color,
                     apiEndpoint: "",
+                    logData: "",
                     onApiChange: handleApiChange,
+                    onLogChange: handleLogChange,
                 },
             };
 
@@ -241,9 +276,95 @@ export default function AutomationPage() {
         // Find nodes
         const prometheusNode = nodes.find(n => n.data.label === "Prometheus");
         const serverNode = nodes.find(n => n.data.label === "Server");
+        const serverLogsNode = nodes.find(n => n.data.label === "Server Logs");
         const healthAgentNode = nodes.find(n => n.data.label === "Health Agent");
-        const investigatorNode = nodes.find(n => n.data.label === "Log Analyzer");
+        const investigatorNode = nodes.find(n => n.data.label === "Investigator Agent");
 
+        // Check for Server Logs → Investigator Agent workflow
+        if (serverLogsNode && investigatorNode) {
+            const isServerLogsInvestigatorConnected = edges.some(
+                edge =>
+                    (edge.source === serverLogsNode.id && edge.target === investigatorNode.id) ||
+                    (edge.source === investigatorNode.id && edge.target === serverLogsNode.id)
+            );
+
+            if (isServerLogsInvestigatorConnected) {
+                const logData = serverLogsNode.data.logData;
+                if (!logData) {
+                    alert("Please paste log data in the Server Logs node");
+                    return;
+                }
+
+                setIsLoadingMetrics(true);
+                setShowMetrics(true);
+
+                console.log('Investigating server logs directly...');
+
+                try {
+                    // Directly investigate logs without metrics
+                    const investigateResponse = await fetch('http://localhost:8000/automation/investigate-logs', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            log_data: logData
+                        })
+                    });
+
+                    if (!investigateResponse.ok) {
+                        const errorData = await investigateResponse.json();
+                        throw new Error(errorData.detail || 'Failed to investigate logs');
+                    }
+
+                    const investigateResult = await investigateResponse.json();
+                    console.log('Investigation result:', investigateResult);
+
+                    // Store data for investigator observability page
+                    const investigatorData = {
+                        investigation: investigateResult.investigation,
+                        metrics: [],
+                        rawMetrics: null,
+                        timestamp: new Date().toISOString(),
+                        source: "Server Logs (Direct Input)"
+                    };
+
+                    localStorage.setItem('investigatorData', JSON.stringify(investigatorData));
+
+                    // Format investigation for display in sidebar
+                    const investigationDisplay = `
+=== INVESTIGATION REPORT ===
+
+Status: ${investigateResult.investigation.status.toUpperCase()}
+
+${investigateResult.investigation.summary ? `
+Log Analysis:
+  Total Lines: ${investigateResult.investigation.summary.total_lines_scanned}
+  Errors: ${investigateResult.investigation.summary.error_count}
+  Critical: ${investigateResult.investigation.summary.critical_count}` : ''}
+
+✅ Investigation complete! Redirecting to Investigator Dashboard...
+                    `.trim();
+
+                    setMetricsData(investigationDisplay);
+
+                    // Navigate to investigator page after a short delay
+                    setTimeout(() => {
+                        router.push('/observability/investigator');
+                    }, 2000);
+
+                    setIsLoadingMetrics(false);
+                    return; // Exit early for this workflow
+                } catch (error) {
+                    console.error("Error in workflow:", error);
+                    setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
+                    setIsLoadingMetrics(false);
+                    return;
+                }
+            }
+        }
+
+        // Original Server + Prometheus workflow
         if (!prometheusNode || !serverNode) {
             alert("Please add both Prometheus and Server nodes");
             return;
