@@ -11,7 +11,7 @@ export default function LandingPage() {
           <div className="size-8 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
             <Zap size={20} fill="currentColor" />
           </div>
-          <span>RygtusBuild</span>
+          <span>AutoFlow</span>
         </div>
         <div className="ml-auto">
           <Link href="/connect">
