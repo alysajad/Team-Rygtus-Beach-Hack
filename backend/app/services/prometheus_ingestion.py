@@ -1,7 +1,20 @@
 import re
 from typing import List, Dict, Any
 
+import requests
+
 class PrometheusIngestionService:
+    def fetch_prometheus_metrics(self, url: str) -> str:
+        """
+        Fetches raw metrics from the given Prometheus URL.
+        """
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            return response.text
+        except Exception as e:
+            raise Exception(f"Failed to fetch metrics from {url}: {str(e)}")
+
     def parse_metrics(self, raw_text: str) -> List[Dict[str, Any]]:
         """
         Parses raw Prometheus text format into a structured list of dictionaries.

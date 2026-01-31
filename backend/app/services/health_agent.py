@@ -38,9 +38,15 @@ class HealthAgent:
                     issues.append("Low disk space")
                     health_status = "critical" # Critical overrides degraded
 
+        if issues:
+            message = f"Issues detected: {', '.join(issues)}"
+        else:
+            message = "System is healthy: No anomalies detected."
+
         return {
-            "health": health_status,
-            "issues": issues
+            "health_status": health_status,
+            "issues": issues,
+            "message": message
         }
 
 health_agent = HealthAgent()

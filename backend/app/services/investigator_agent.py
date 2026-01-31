@@ -10,54 +10,62 @@ class InvestigatorAgent:
         issues = []
         error_count = 0
         critical_count = 0
-        
+        total_lines = 0
         snippets = []
         
-        if not os.path.exists(log_path):
-            return {
-                "error": f"Log file not found: {log_path}",
-                "status": "failed"
-            }
-
         try:
-            with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
-                lines = f.readlines()
-                
-            total_lines = len(lines)
-            
-            # Simple window based context extraction
-            # If we find an error, we take some lines before and after
-            
-            i = 0
-            while i < len(lines):
-                line = lines[i].strip()
-                lower_line = line.lower()
-                
-                is_error = "error" in lower_line or "exception" in lower_line or "traceback" in lower_line
-                is_critical = "critical" in lower_line
-                
-                if is_error or is_critical:
-                    if is_error:
-                        error_count += 1
-                    if is_critical:
-                        critical_count += 1
+            if log_path and os.path.exists(log_path):
+                try:
+                    with open(log_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        lines = f.readlines()
                         
-                    # Capture context: 2 lines before, current line, 5 lines after (for tracebacks)
-                    start_idx = max(0, i - 2)
-                    end_idx = min(len(lines), i + 6)
+                    total_lines = len(lines)
                     
-                    context = lines[start_idx:end_idx]
-                    snippets.append({
-                        "line_number": i + 1,
-                        "content": "".join(context)
-                    })
-                    
-                    # Skip ahead to avoid overlapping snippets for the same block of errors
-                    i = end_idx 
-                else:
-                    i += 1
+                    # Simple window based context extraction
+                    i = 0
+                    while i < len(lines):
+                        line = lines[i].strip()
+                        lower_line = line.lower()
+                        
+                        is_error = "error" in lower_line or "exception" in lower_line or "traceback" in lower_line
+                        is_critical = "critical" in lower_line
+                        
+                        if is_error or is_critical:
+                            if is_error:
+                                error_count += 1
+                            if is_critical:
+                                critical_count += 1
+                                
+                            
+                            # Capture context: 2 lines before, current line, 5 lines after (for tracebacks)
+                            start_idx = max(0, i - 2)
+                            end_idx = min(len(lines), i + 6)
+                            
+                            context = lines[start_idx:end_idx]
+                            
+                            # Try to find a "File ..., line ..." pattern in the context to pinpoint the code location
+                            source_location = "Unknown location"
+                            for c_line in context:
+                                if "File \"" in c_line and ", line " in c_line:
+                                    source_location = c_line.strip()
+                                    break
+                            
+                            snippets.append({
+                                "line_number": i + 1,
+                                "content": "".join(context),
+                                "suspected_cause_location": source_location,
+                                "error_type": "Critical" if is_critical else "Error"
+                            })
+                            
+                            # Skip ahead to avoid overlapping snippets
+                            i = end_idx 
+                        else:
+                            i += 1
+                except Exception as e:
+                    # Log read error but continue
+                    print(f"Error reading log file: {e}")
             
-            # Metric Analysis (similar to HealthAgent)
+            # Metric Analysis
             metric_issues = []
             if normalized_metrics:
                 for m in normalized_metrics:
@@ -71,8 +79,26 @@ class InvestigatorAgent:
                     elif metric_name == "disk_free_percent" and value < 0.15:
                         metric_issues.append("Low disk space (< 15% free)")
 
+            # Construct a clear message
+            msgs = []
+            
+            if len(snippets) > 0:
+                line_nums = ", ".join([str(s['line_number']) for s in snippets])
+                msgs.append(f"Errors found in logs at lines: {line_nums}.")
+            elif total_lines > 0:
+                msgs.append("No errors found in the input logs.")
+            else:
+                 msgs.append("No input logs found or file is empty.")
+
+            if len(metric_issues) > 0:
+                issues_str = "; ".join(metric_issues)
+                msgs.append(f"Metric Anomalies: {issues_str}.")
+
+            analysis_message = " ".join(msgs)
+
             return {
                 "status": "success",
+                "message": analysis_message,
                 "log_path": log_path,
                 "summary": {
                     "total_lines_scanned": total_lines,
@@ -81,7 +107,7 @@ class InvestigatorAgent:
                     "metric_issues_count": len(metric_issues)
                 },
                 "metric_issues": metric_issues,
-                "snippets": snippets[:10] # Limit to first 10 snippets to avoid huge payloads
+                "snippets": snippets[:10]
             }
             
         except Exception as e:

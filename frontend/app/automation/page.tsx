@@ -325,7 +325,7 @@ export default function AutomationPage() {
                             agentName: "Investigator Agent (Logs)",
                             agentType: "investigatorAgent",
                             status: "success",
-                            summary: `Investigated server logs.\nStatus: ${data.investigation.status}`,
+                            summary: data.investigation.message || `Investigated server logs.\nStatus: ${data.investigation.status}`,
                             details: data.investigation,
                             timestamp: new Date().toISOString()
                         });
@@ -454,7 +454,7 @@ export default function AutomationPage() {
                                         agentName: "Health Agent",
                                         agentType: "healthAgent",
                                         status: hData.health_status === "healthy" ? "success" : "warning",
-                                        summary: `Health Status: ${hData.health_status}\nIssues: ${hData.issues.length}`,
+                                        summary: hData.message || `Health Status: ${hData.health_status}\nIssues: ${hData.issues.length}`,
                                         details: hData,
                                         timestamp: new Date().toISOString()
                                     });
@@ -486,8 +486,8 @@ export default function AutomationPage() {
                                         agentIds: [serverNode.id, prometheusNode.id, investigatorNode!.id],
                                         agentName: "Investigator Agent (Metrics)",
                                         agentType: "investigatorAgent",
-                                        status: iData.investigation.status === "healthy" ? "success" : "warning",
-                                        summary: `Metric Investigation: ${iData.investigation.status}`,
+                                        status: iData.investigation.status === "healthy" || iData.investigation.status === "success" ? "success" : "warning",
+                                        summary: iData.investigation.message || `Metric Investigation: ${iData.investigation.status}`,
                                         details: iData.investigation,
                                         timestamp: new Date().toISOString()
                                     });
