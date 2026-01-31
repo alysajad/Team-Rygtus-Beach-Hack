@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import httpx
 import logging
+import subprocess
 from app.services.prometheus_ingestion import prometheus_service
 from app.services.normalization import normalization_service
 from app.services.health_agent import health_agent
@@ -243,3 +244,52 @@ async def analyze_alert(request: HealthAnalysisRequest):
     except Exception as e:
         logger.error(f"Error analyzing alert: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error analyzing alert: {str(e)}")
+
+class FetchLogsRequest(BaseModel):
+    lines: int = 100  # Number of log lines to fetch
+
+@router.post("/fetch-logs")
+async def fetch_system_logs(request: FetchLogsRequest):
+    """
+    Fetches system logs using journalctl command.
+    Returns the most recent log entries.
+    """
+    try:
+        logger.info(f"Fetching {request.lines} lines of system logs")
+        
+        # Try without sudo first (works for most users)
+        result = subprocess.run(
+            ['journalctl', '-n', str(request.lines), '--no-pager'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        # If non-sudo fails, try with sudo
+        if result.returncode != 0:
+            logger.warning("journalctl without sudo failed, trying with sudo")
+            result = subprocess.run(
+                ['sudo', '-n', 'journalctl', '-n', str(request.lines), '--no-pager'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+        
+        if result.returncode != 0:
+            raise Exception(f"journalctl command failed: {result.stderr}")
+        
+        logs = result.stdout
+        logger.info(f"Successfully fetched {len(logs)} characters of logs")
+        
+        return {
+            "success": True,
+            "logs": logs,
+            "lines_requested": request.lines
+        }
+        
+    except subprocess.TimeoutExpired:
+        logger.error("journalctl command timed out")
+        raise HTTPException(status_code=408, detail="Log fetch timed out")
+    except Exception as e:
+        logger.error(f"Error fetching logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching logs: {str(e)}")

@@ -86,14 +86,35 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
 
             {/* Log Input for Server Logs Node */}
             {isServerLogsNode && (
-                <div className="mt-3">
+                <div className="mt-3 space-y-2">
                     <textarea
-                        placeholder="Paste server logs here..."
+                        placeholder="Paste server logs here or click 'Fetch Logs' below..."
                         value={data.logData || ""}
                         onChange={(e) => data.onLogChange?.(id, e.target.value)}
                         className="text-xs p-2 border rounded w-full h-24 text-black resize-none"
                         onClick={(e) => e.stopPropagation()}
                     />
+                    <button
+                        onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                                data.onLogChange?.(id, "Fetching logs...");
+                                const res = await fetch('http://localhost:8000/automation/fetch-logs', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ lines: 100 })
+                                });
+                                if (!res.ok) throw new Error("Failed to fetch logs");
+                                const result = await res.json();
+                                data.onLogChange?.(id, result.logs);
+                            } catch (err) {
+                                data.onLogChange?.(id, `Error fetching logs: ${err instanceof Error ? err.message : String(err)}`);
+                            }
+                        }}
+                        className="w-full px-3 py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors"
+                    >
+                        Fetch Logs (journalctl)
+                    </button>
                 </div>
             )}
 
