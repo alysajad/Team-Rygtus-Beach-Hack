@@ -735,8 +735,8 @@ ${investigateResult.investigation.metric_issues?.length > 0 ? `\nMetric Issues:\
                             );
                         })}
                     </div>
-                    <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <p className="text-xs text-black">
+                    <div className="mt-6 p-4 bg-blue-50/80 rounded-lg border border-blue-200 shadow-sm">
+                        <p className="text-xs text-blue-900 leading-relaxed">
                             💡 <strong>Tip:</strong> Drag nodes onto the canvas or click to add them. Connect nodes by dragging from one node's edge to another.
                         </p>
                     </div>
@@ -760,14 +760,15 @@ ${investigateResult.investigation.metric_issues?.length > 0 ? `\nMetric Issues:\
                             style: { stroke: '#94a3b8', strokeWidth: 2 },
                         }}
                     >
-                        <Controls className="bg-white shadow-lg rounded-lg border-2 border-gray-200" />
+                        <Controls className="!bg-white !shadow-xl !rounded-lg !border !border-gray-200 [&>button]:!text-gray-800 [&>button:hover]:!bg-gray-100" />
                         <MiniMap
                             nodeColor={(node) => {
                                 return (node.data.color as string) || "#3b82f6";
                             }}
-                            className="bg-white border-2 border-gray-300 shadow-lg rounded-lg"
+                            className="!bg-white !border !border-gray-200 !shadow-xl !rounded-lg"
+                            maskColor="rgba(240, 240, 240, 0.6)"
                         />
-                        <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} className="bg-gray-50" />
+                        <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} color="#d1d5db" className="bg-gray-50" />
                     </ReactFlow>
                 </div>
 
