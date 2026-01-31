@@ -97,8 +97,9 @@ function SortableItem({ id }: SortableItemProps) {
 }
 
 import { DeploymentModal } from "@/components/deployment-modal";
-import { generateCDPipeline } from "@/lib/api";
+import { generateCDPipeline, commitPipeline } from "@/lib/api";
 import { Cloud, Check } from "lucide-react";
+import { YamlPreviewModal } from "@/components/yaml-preview-modal";
 
 export default function PipelinePage() {
     const router = useRouter();
@@ -110,6 +111,14 @@ export default function PipelinePage() {
     // Deployment states
     const [isConfigured, setIsConfigured] = useState(false);
     const [cdGenerating, setCdGenerating] = useState(false);
+
+    // Preview states
+    const [previewModal, setPreviewModal] = useState<{ open: boolean, type: string, yaml: string }>({
+        open: false,
+        type: "ci",
+        yaml: ""
+    });
+    const [isCommitting, setIsCommitting] = useState(false);
 
     const sensors = useSensors(
         useSensor(PointerSensor),
@@ -150,17 +159,16 @@ export default function PipelinePage() {
     const handleGenerate = async () => {
         setGenerating(true);
         try {
-            const { data } = await api.post("/pipeline/generate-and-commit", { steps });
-            const query = new URLSearchParams({
-                path: data.file_path,
-                commit: data.commit,
-                yaml: data.yaml_preview
-            }).toString();
-
-            router.push(`/commit?${query}`);
+            const { data } = await api.post("/pipeline/ci/preview", { steps });
+            setPreviewModal({
+                open: true,
+                type: "ci",
+                yaml: data.yaml
+            });
         } catch (err) {
             console.error(err);
-            alert("Failed to commit pipeline.");
+            alert("Failed to generate preview.");
+        } finally {
             setGenerating(false);
         }
     };
@@ -168,18 +176,40 @@ export default function PipelinePage() {
     const handleGenerateCD = async () => {
         setCdGenerating(true);
         try {
-            const { data } = await generateCDPipeline();
+            const { data } = await api.post("/pipeline/cd/preview");
+            setPreviewModal({
+                open: true,
+                type: "cd",
+                yaml: data.yaml
+            });
+        } catch (err) {
+            console.error(err);
+            alert("Failed to generate CD preview.");
+        } finally {
+            setCdGenerating(false);
+        }
+    };
+
+    const handleCommit = async (finalYaml: string) => {
+        setIsCommitting(true);
+        try {
+            // Use type assertion properly if needed, mostly "ci" | "cd" matches string
+            const { data } = await commitPipeline(previewModal.type as "ci" | "cd", finalYaml);
+
             const query = new URLSearchParams({
                 path: data.file_path,
                 commit: data.commit,
-                yaml: data.yaml_preview
+                yaml: finalYaml
             }).toString();
 
             router.push(`/commit?${query}`);
+
+            setPreviewModal({ ...previewModal, open: false });
         } catch (err) {
             console.error(err);
-            alert("Failed to commit CD pipeline.");
-            setCdGenerating(false);
+            alert("Failed to commit.");
+        } finally {
+            setIsCommitting(false);
         }
     };
 
@@ -339,6 +369,15 @@ export default function PipelinePage() {
                     </Button>
                 </div>
             </div>
+
+            <YamlPreviewModal
+                open={previewModal.open}
+                onOpenChange={(open) => setPreviewModal({ ...previewModal, open })}
+                title={`Preview ${previewModal.type.toUpperCase()} Pipeline`}
+                initialYaml={previewModal.yaml}
+                onCommit={handleCommit}
+                isCommitting={isCommitting}
+            />
         </div>
     );
 }

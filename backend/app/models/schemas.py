@@ -22,3 +22,7 @@ class WorkflowStep(BaseModel):
 
 class PipelineGenerateRequest(BaseModel):
     steps: List[str] # List of step IDs like "checkout", "install_deps"
+
+class PipelineCommitRequest(BaseModel):
+    type: str # "ci" or "cd"
+    yaml: str

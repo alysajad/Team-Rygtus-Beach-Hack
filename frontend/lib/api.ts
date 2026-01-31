@@ -66,3 +66,15 @@ export const configureDeployment = async (config: AKSConfig) => {
 export const generateCDPipeline = async () => {
     return api.post("/pipeline/generate-cd");
 };
+
+export const previewCI = async (steps: string[]) => {
+    return api.post("/pipeline/ci/preview", { steps });
+};
+
+export const previewCD = async () => {
+    return api.post("/pipeline/cd/preview");
+};
+
+export const commitPipeline = async (type: "ci" | "cd", yaml: string) => {
+    return api.post("/pipeline/commit", { type, yaml });
+};

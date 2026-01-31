@@ -4,7 +4,7 @@ from app.services.generator import workflow_generator
 from app.services.github import github_client
 from app.routers.repos import get_current_repo_context
 from app.dependencies import get_token
-from app.models.schemas import PipelineGenerateRequest
+from app.models.schemas import PipelineGenerateRequest, PipelineCommitRequest
 import base64
 
 router = APIRouter()
@@ -90,13 +90,17 @@ def generate_cd_pipeline(token: str = Depends(get_token)):
     owner = repo_context["owner"]
     repo = repo_context["repo"]
     
+    # Get Stack Info for CD (to check for Dockerfile)
+    stack = repo_analyzer.analyze(token, owner, repo)
+
     # Generate CD YAML
     from app.services.cd_generator import CDWorkflowGenerator
     generator = CDWorkflowGenerator()
     yaml_content = generator.generate_aks_cd(
         acr_name=config["acr_name"],
         aks_cluster=config["aks_cluster"],
-        resource_group=config["resource_group"]
+        resource_group=config["resource_group"],
+        stack=stack
     )
     
     # Commit to GitHub
@@ -124,3 +128,80 @@ def generate_cd_pipeline(token: str = Depends(get_token)):
         "commit": result["content"]["sha"],
         "yaml_preview": yaml_content
     }
+
+# --- New Preview & Commit Endpoints ---
+
+@router.post("/ci/preview")
+def preview_ci_pipeline(request: PipelineGenerateRequest, token: str = Depends(get_token)):
+    """
+    Generates CI YAML but does NOT commit.
+    Returns the YAML for user review.
+    """
+    context = get_current_repo_context(token)
+    stack = repo_analyzer.analyze(token, context["owner"], context["repo"])
+    
+    yaml_content = workflow_generator.generate_yaml(request.steps, stack)
+    
+    return {"yaml": yaml_content}
+
+@router.post("/cd/preview")
+def preview_cd_pipeline(token: str = Depends(get_token)):
+    """
+    Generates CD YAML but does NOT commit.
+    Returns the YAML for user review.
+    """
+    from app.routers.deployment import DEPLOYMENT_CONFIGS
+    
+    config = DEPLOYMENT_CONFIGS.get(token)
+    if not config or not config.get("configured"):
+        raise HTTPException(status_code=400, detail="Deployment not configured.")
+
+    context = get_current_repo_context(token)
+    stack = repo_analyzer.analyze(token, context["owner"], context["repo"])
+
+    from app.services.cd_generator import CDWorkflowGenerator
+    generator = CDWorkflowGenerator()
+    yaml_content = generator.generate_aks_cd(
+        acr_name=config["acr_name"],
+        aks_cluster=config["aks_cluster"],
+        resource_group=config["resource_group"],
+        stack=stack
+    )
+    
+    return {"yaml": yaml_content}
+
+@router.post("/commit")
+def commit_pipeline(request: PipelineCommitRequest, token: str = Depends(get_token)):
+    """
+    Commits the approved YAML to GitHub.
+    """
+    from app.models.schemas import PipelineCommitRequest # Ensure imported if not recursive
+    
+    # Validate type
+    if request.type not in ["ci", "cd"]:
+        raise HTTPException(status_code=400, detail="Invalid pipeline type. Must be 'ci' or 'cd'.")
+        
+    context = get_current_repo_context(token)
+    owner = context["owner"]
+    repo = context["repo"]
+    
+    file_path = f".github/workflows/{request.type}.yml"
+    message = f"Add {request.type.upper()} pipeline (generated)"
+    content_b64 = base64.b64encode(request.yaml.encode("utf-8")).decode("utf-8")
+    
+    # Check if file exists (for update SHA)
+    existing_file = github_client.get_repo_contents(token, owner, repo, file_path)
+    sha = existing_file["sha"] if existing_file else None
+    
+    try:
+        result = github_client.create_or_update_file(
+            token, owner, repo, file_path, message, content_b64, sha
+        )
+        return {
+            "status": "success",
+            "message": f"{request.type.upper()} pipeline committed.",
+            "file_path": file_path,
+            "commit": result["content"]["sha"]
+        }
+    except Exception as e:
+         raise HTTPException(status_code=500, detail=f"Failed to commit: {str(e)}")
