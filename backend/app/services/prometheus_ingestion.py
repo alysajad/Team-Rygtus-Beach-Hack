@@ -45,14 +45,17 @@ class PrometheusIngestionService:
             match = re.match(r'^([a-zA-Z_:][a-zA-Z0-9_:]*)\s+([0-9.eE+-]+)', line)
             if match:
                 metric_name = match.group(1)
-                value = float(match.group(2))
-                
-                parsed_metrics.append({
-                    "name": metric_name,
-                    "labels": {},
-                    "value": value,
-                    "type": current_metric_type or "unknown"
-                })
+                try:
+                    value = float(match.group(2))
+                    parsed_metrics.append({
+                        "name": metric_name,
+                        "labels": {},
+                        "value": value,
+                        "type": current_metric_type or "unknown"
+                    })
+                except ValueError:
+                    # Skip invalid float values
+                    pass
                 continue
             
             # Parse metrics with labels
@@ -60,21 +63,25 @@ class PrometheusIngestionService:
             if match:
                 metric_name = match.group(1)
                 labels_str = match.group(2)
-                value = float(match.group(3))
-                
-                # Parse labels
-                labels = {}
-                for label_pair in labels_str.split(','):
-                    label_match = re.match(r'([^=]+)="([^"]*)"', label_pair.strip())
-                    if label_match:
-                        labels[label_match.group(1)] = label_match.group(2)
-                
-                parsed_metrics.append({
-                    "name": metric_name,
-                    "labels": labels,
-                    "value": value,
-                    "type": current_metric_type or "unknown"
-                })
+                try:
+                    value = float(match.group(3))
+                    
+                    # Parse labels
+                    labels = {}
+                    for label_pair in labels_str.split(','):
+                        label_match = re.match(r'([^=]+)="([^"]*)"', label_pair.strip())
+                        if label_match:
+                            labels[label_match.group(1)] = label_match.group(2)
+                    
+                    parsed_metrics.append({
+                        "name": metric_name,
+                        "labels": labels,
+                        "value": value,
+                        "type": current_metric_type or "unknown"
+                    })
+                except ValueError:
+                    # Skip invalid float values
+                    pass
         
         return parsed_metrics
 
