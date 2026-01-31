@@ -56,7 +56,7 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
                         style={{ color: data.color }}
                     />
                 </div>
-                <div className="font-bold text-sm text-gray-900">{data.label}</div>
+                <div className="font-bold text-sm text-black">{data.label}</div>
             </div>
 
             {/* API Input for Server Node */}
@@ -67,7 +67,7 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
                         placeholder="Enter API (e.g., 20.197.7.126:9100)"
                         value={data.apiEndpoint || ""}
                         onChange={(e) => data.onApiChange?.(id, e.target.value)}
-                        className="text-xs h-8"
+                        className="text-xs h-8 text-black"
                         onClick={(e) => e.stopPropagation()}
                     />
                 </div>
@@ -248,13 +248,39 @@ export default function AutomationPage() {
         setIsLoadingMetrics(true);
         setShowMetrics(true);
 
+        console.log('Fetching metrics from:', apiEndpoint);
+
         try {
-            const response = await fetch(`http://${apiEndpoint}/metrics`);
-            const data = await response.text();
-            setMetricsData(data);
+            const response = await fetch('http://localhost:8000/automation/metrics', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    endpoint: apiEndpoint
+                })
+            });
+
+            console.log('Response status:', response.status);
+            console.log('Response ok:', response.ok);
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                console.error('Error response:', errorData);
+                throw new Error(errorData.detail || 'Failed to fetch metrics');
+            }
+
+            const result = await response.json();
+            console.log('Result received:', result);
+            console.log('Data field:', result.data);
+            console.log('Data type:', typeof result.data);
+            console.log('Data length:', result.data?.length);
+
+            setMetricsData(result.data);
+            console.log('Metrics data set successfully');
         } catch (error) {
             console.error("Error fetching metrics:", error);
-            setMetricsData(`Error fetching metrics: ${error}`);
+            setMetricsData(`Error fetching metrics: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             setIsLoadingMetrics(false);
         }
@@ -272,8 +298,8 @@ export default function AutomationPage() {
                     <ArrowLeft className="size-4" />
                 </Button>
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold">Workflow Automation</h1>
-                    <p className="text-sm text-muted-foreground">
+                    <h1 className="text-2xl font-bold text-black">Workflow Automation</h1>
+                    <p className="text-sm text-black">
                         Drag nodes from the palette and connect them to build your workflow
                     </p>
                 </div>
@@ -292,7 +318,7 @@ export default function AutomationPage() {
             <div className="flex-1 flex overflow-hidden">
                 {/* Left Sidebar - Node Palette */}
                 <div className="w-64 border-r bg-muted/30 p-4 overflow-y-auto">
-                    <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-muted-foreground">
+                    <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-black">
                         Node Palette
                     </h2>
                     <div className="space-y-3">
@@ -321,7 +347,7 @@ export default function AutomationPage() {
                                                 style={{ color: nodeDef.color }}
                                             />
                                         </div>
-                                        <span className="font-semibold text-sm text-gray-900">
+                                        <span className="font-semibold text-sm text-black">
                                             {nodeDef.label}
                                         </span>
                                     </div>
@@ -330,7 +356,7 @@ export default function AutomationPage() {
                         })}
                     </div>
                     <div className="mt-6 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <p className="text-xs text-blue-900 dark:text-blue-100">
+                        <p className="text-xs text-black">
                             💡 <strong>Tip:</strong> Drag nodes onto the canvas or click to add them. Connect nodes by dragging from one node's edge to another.
                         </p>
                     </div>
@@ -369,7 +395,7 @@ export default function AutomationPage() {
                 {showMetrics && (
                     <div className="w-96 border-l bg-white p-4 overflow-y-auto">
                         <div className="flex items-center justify-between mb-4">
-                            <h2 className="font-semibold text-lg">Metrics Data</h2>
+                            <h2 className="font-semibold text-lg text-black">Metrics Data</h2>
                             <Button
                                 variant="ghost"
                                 size="sm"
@@ -379,7 +405,7 @@ export default function AutomationPage() {
                             </Button>
                         </div>
                         <div className="bg-gray-50 rounded-lg p-4 border">
-                            <pre className="text-xs whitespace-pre-wrap break-words font-mono">
+                            <pre className="text-xs whitespace-pre-wrap break-words font-mono text-black">
                                 {metricsData || "No data available"}
                             </pre>
                         </div>
