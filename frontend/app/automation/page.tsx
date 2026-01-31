@@ -723,18 +723,16 @@ export default function AutomationPage() {
 
                         if (!recipientEmail) throw new Error("No recipient email in Send Mail node");
 
-                        // Prepare email payload - use custom subject/body if provided, otherwise use alert data
+                        // Prepare email payload - always include alert data if available
                         const emailPayload: any = {
                             to_email: recipientEmail,
+                            alert_data: latestAlertData.data, // Always include alert data
                         };
 
+                        // Add custom subject/body if provided
                         if (emailSubject && emailBody) {
-                            // Custom email mode
                             emailPayload.subject = emailSubject;
                             emailPayload.body = emailBody;
-                        } else {
-                            // Alert-based email mode
-                            emailPayload.alert_data = latestAlertData.data;
                         }
 
                         // Send email
