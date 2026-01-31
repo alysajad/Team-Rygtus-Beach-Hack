@@ -18,8 +18,10 @@ app.include_router(oauth.router, prefix="/oauth", tags=["OAuth"])
 app.include_router(repos.router, prefix="/repos", tags=["Repos"])
 app.include_router(pipeline.router, prefix="/pipeline", tags=["Pipeline"])
 app.include_router(automation.router, prefix="/automation", tags=["Automation"])
-from app.routers import deployment
+from app.routers import deployment, telemetry, agents
 app.include_router(deployment.router, tags=["Deployment"])
+app.include_router(telemetry.router, tags=["Telemetry"])
+app.include_router(agents.router, tags=["Agents"])
 
 @app.get("/")
 def root():
