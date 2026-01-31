@@ -136,9 +136,12 @@ export default function PipelinePage() {
             const { data } = await api.post("/pipeline/suggest");
             setStack(data.stack);
             setSteps(data.suggested_steps);
-        } catch (err) {
+        } catch (err: any) {
             console.error(err);
-            // alert("Error fetching suggestions. Make sure repo is selected.");
+            if (err.response?.status === 400 || err.response?.status === 500) {
+                // Backend context lost (restart) or not selected
+                router.push("/repos");
+            }
         } finally {
             setLoading(false);
         }
