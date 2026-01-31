@@ -744,7 +744,10 @@ export default function AutomationPage() {
                             body: JSON.stringify(emailPayload)
                         });
 
-                        if (!res.ok) throw new Error("Failed to send email");
+                        if (!res.ok) {
+                            const errorData = await res.json().catch(() => ({ detail: "Failed to send email" }));
+                            throw new Error(errorData.detail || "Failed to send email");
+                        }
                         const emailData = await res.json();
 
                         executionResults.push({
