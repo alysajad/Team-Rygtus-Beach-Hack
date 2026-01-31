@@ -7,12 +7,27 @@ router = APIRouter()
 
 from app.dependencies import get_token
 
-# In-memory storage for selected repo context
-# Map: token (acting as session ID) -> {owner, repo}
-# WARNING: using token as key is not secure for production but fine for hackathon scope where we don't have session management
-token_repo_map = {}
+import json
+import os
 
-# get_token moved to app.dependencies
+# File to persist repo context across server restarts
+CONTEXT_FILE = "repo_context.json"
+
+def _load_context():
+    if os.path.exists(CONTEXT_FILE):
+        try:
+            with open(CONTEXT_FILE, "r") as f:
+                return json.load(f)
+        except:
+            return {}
+    return {}
+
+def _save_context(data):
+    with open(CONTEXT_FILE, "w") as f:
+        json.dump(data, f)
+
+# Initialize from file
+token_repo_map = _load_context()
 
 @router.get("/", response_model=List[dict])
 def list_repos(token: str = Depends(get_token)):
@@ -45,10 +60,16 @@ def select_repository(request: RepoSelectRequest, token: str = Depends(get_token
     # For now, just store it.
     
     token_repo_map[token] = {"owner": request.owner, "repo": request.repo}
+    _save_context(token_repo_map)
     return {"message": f"Selected repository {request.owner}/{request.repo}"}
 
 def get_current_repo_context(token: str):
-    context = token_repo_map.get(token)
+    # Reload just in case another worker updated it (though uvicorn workers for dev usually 1)
+    # For efficiency we can rely on memory update + file save, but loading on miss is safer if multi-worker.
+    # But for a simple hackathon app, in-memory + init-load is fine. 
+    # Let's ensure we have the latest.
+    current_map = _load_context()
+    context = current_map.get(token)
     if not context:
         raise HTTPException(status_code=400, detail="No repository selected. Please call /repos/select first.")
     return context

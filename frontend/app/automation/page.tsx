@@ -37,6 +37,7 @@ import {
     FileText,
     Shield,
     TrendingUp,
+    Trash2,
 } from "lucide-react";
 
 // Custom Node Component
@@ -46,7 +47,7 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
     const isServerLogsNode = data.label === "Server Logs";
 
     return (
-        <div className="px-5 py-4 shadow-xl rounded-xl border-2 bg-gradient-to-br from-white to-gray-50 min-w-[180px] relative hover:shadow-2xl transition-all duration-200 hover:scale-105"
+        <div className="px-3 py-2 shadow-xl rounded-xl border-2 bg-gradient-to-br from-white to-gray-50 min-w-[140px] relative hover:shadow-2xl transition-all duration-200 hover:scale-105"
             style={{ borderColor: data.color }}>
             {/* Input Handle (left side) */}
             <Handle
@@ -294,6 +295,19 @@ export default function AutomationPage() {
         const investigatorNode = nodes.find(n => n.data.label === "Investigator Agent");
         const reliabilityNode = nodes.find(n => n.data.label === "Reliability Agent");
 
+        // Validation Checks
+        if (serverNode && !serverNode.data.apiEndpoint) {
+            alert("Server endpoint is missing! Please enter an API endpoint in the Server node.");
+            setIsLoadingMetrics(false);
+            return;
+        }
+
+        if (serverLogsNode && !serverLogsNode.data.logData) {
+            alert("Server log is missing! Please paste logs in the Server Logs node.");
+            setIsLoadingMetrics(false);
+            return;
+        }
+
         try {
             // --- Flow 1: Server Logs -> Investigator Agent ---
             if (serverLogsNode && investigatorNode) {
@@ -377,12 +391,20 @@ export default function AutomationPage() {
                         if (!relRes.ok) throw new Error("Reliability analysis failed");
                         const relData = await relRes.json();
 
+                        // Format simple summary with top risk
+                        let relSummary = `Reliability Score: ${relData.reliability.reliability_score}\nStatus: ${relData.reliability.status}`;
+                        if (relData.reliability.predicted_risks && relData.reliability.predicted_risks.length > 0) {
+                            const risks = [...relData.reliability.predicted_risks].sort((a: any, b: any) => b.probability - a.probability);
+                            const topRisk = risks[0];
+                            relSummary += `\n⚠️ ${topRisk.type} (${Math.round(topRisk.probability * 100)}%)`;
+                        }
+
                         executionResults.push({
                             agentIds: [serverNode.id, reliabilityNode.id],
                             agentName: "Reliability Agent",
                             agentType: "reliabilityAgent",
                             status: relData.reliability.status === "critical" ? "warning" : "success",
-                            summary: `Reliability Score: ${relData.reliability.reliability_score}\nStatus: ${relData.reliability.status}`,
+                            summary: relSummary,
                             details: relData.reliability,
                             timestamp: new Date().toISOString()
                         });
@@ -538,6 +560,81 @@ export default function AutomationPage() {
         }
     };
 
+    // Persistence Load
+    React.useEffect(() => {
+        const saved = localStorage.getItem("automationGraphData");
+        if (saved) {
+            try {
+                const { nodes: savedNodes, edges: savedEdges } = JSON.parse(saved);
+
+                // Hydrate nodes (restore icons and callbacks)
+                const hydratedNodes = (savedNodes || []).map((node: any) => {
+                    // Find definition to restore icon
+                    const def = nodeDefinitions.find(d => d.label === node.data.label);
+                    return {
+                        ...node,
+                        data: {
+                            ...node.data,
+                            icon: def ? def.icon : Server, // Fallback to Server icon if not found
+                            onApiChange: handleApiChange,
+                            onLogChange: handleLogChange
+                        }
+                    };
+                });
+
+                setNodes(hydratedNodes);
+                setEdges(savedEdges || []);
+            } catch (e) {
+                console.error("Failed to load graph", e);
+            }
+        }
+    }, [handleApiChange, handleLogChange]);
+
+    // Persistence Save
+    React.useEffect(() => {
+        if (nodes.length > 0 || edges.length > 0) {
+            localStorage.setItem("automationGraphData", JSON.stringify({ nodes, edges }));
+        }
+    }, [nodes, edges]);
+
+    // Trash Drop Handler
+    const trashRef = React.useRef<HTMLDivElement>(null);
+    const onNodeDragStop = useCallback(
+        (_: any, node: Node) => {
+            if (trashRef.current) {
+                const trashRect = trashRef.current.getBoundingClientRect();
+                // Get node position in screen coordinates?
+                // Actually ReactFlow node position is internal.
+                // We need the mouse event... ReactFlow onNodeDragStop gives (event, node).
+                // Let's rely on the mouse event from the callback arguments if available.
+                // onNodeDragStop signature: (event: React.MouseEvent, node: Node)
+            }
+        },
+        [setNodes]
+    );
+
+    // Revised Handler consuming event
+    const onNodeDragStopReal = useCallback(
+        (event: React.MouseEvent, node: Node) => {
+            if (!trashRef.current) return;
+
+            const trashRect = trashRef.current.getBoundingClientRect();
+            const mouseX = event.clientX;
+            const mouseY = event.clientY;
+
+            if (
+                mouseX >= trashRect.left &&
+                mouseX <= trashRect.right &&
+                mouseY >= trashRect.top &&
+                mouseY <= trashRect.bottom
+            ) {
+                // Delete node
+                setNodes((nds) => nds.filter((n) => n.id !== node.id));
+            }
+        },
+        [setNodes]
+    );
+
     return (
         <div className="h-screen flex flex-col">
             {/* Header */}
@@ -550,8 +647,8 @@ export default function AutomationPage() {
                     <ArrowLeft className="size-4" />
                 </Button>
                 <div className="flex-1">
-                    <h1 className="text-2xl font-bold text-black">Workflow Automation</h1>
-                    <p className="text-sm text-black">
+                    <h1 className="text-2xl font-bold text-white">Workflow Automation</h1>
+                    <p className="text-sm text-white">
                         Drag nodes from the palette and connect them to build your workflow
                     </p>
                 </div>
@@ -567,7 +664,7 @@ export default function AutomationPage() {
             </div>
 
             {/* Main Content */}
-            <div className="flex-1 flex overflow-hidden">
+            <div className="flex-1 flex overflow-hidden relative">
                 {/* Left Sidebar - Node Palette */}
                 <div className="w-64 border-r bg-muted/30 p-4 overflow-y-auto">
                     <h2 className="font-semibold mb-4 text-sm uppercase tracking-wide text-black">
@@ -609,13 +706,13 @@ export default function AutomationPage() {
                     </div>
                     <div className="mt-6 p-4 bg-blue-50/80 rounded-lg border border-blue-200 shadow-sm">
                         <p className="text-xs text-blue-900 leading-relaxed">
-                            💡 <strong>Tip:</strong> Drag nodes onto the canvas or click to add them. Connect nodes by dragging from one node's edge to another.
+                            💡 <strong>Tip:</strong> Drag nodes onto the canvas or click to add them. Connect nodes by dragging from one node's edge to another. Drop nodes on the trash to delete.
                         </p>
                     </div>
                 </div>
 
                 {/* Center - React Flow Canvas */}
-                <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100">
+                <div className="flex-1 bg-gradient-to-br from-gray-50 to-gray-100 relative">
                     <ReactFlow
                         nodes={nodes}
                         edges={edges}
@@ -624,6 +721,7 @@ export default function AutomationPage() {
                         onConnect={onConnect}
                         onDrop={onDrop}
                         onDragOver={onDragOver}
+                        onNodeDragStop={onNodeDragStopReal}
                         nodeTypes={nodeTypes}
                         fitView
                         className="bg-gradient-to-br from-gray-50 to-gray-100"
@@ -642,6 +740,14 @@ export default function AutomationPage() {
                         />
                         <Background variant={BackgroundVariant.Dots} gap={16} size={1.5} color="#d1d5db" className="bg-gray-50" />
                     </ReactFlow>
+
+                    {/* Trash Drop Zone */}
+                    <div
+                        ref={trashRef}
+                        className="absolute bottom-6 left-20 z-50 p-3 bg-white rounded-full shadow-xl border border-red-100 hover:bg-red-50 hover:scale-110 transition-all cursor-pointer group"
+                    >
+                        <Trash2 className="size-6 text-red-500 group-hover:text-red-600" />
+                    </div>
                 </div>
 
                 {/* Right Sidebar - Metrics Display */}
