@@ -278,389 +278,261 @@ export default function AutomationPage() {
         event.dataTransfer.effectAllowed = "move";
     };
 
-    // Execute workflow - fetch metrics from server node
+    // Execute workflow - run all matching distinct patterns
     const executeWorkflow = async () => {
+        setIsLoadingMetrics(true);
+        setShowMetrics(false); // Hide side panel, we will redirect
+        setMetricsData("");
+
+        const executionResults: any[] = [];
+
         // Find nodes
         const prometheusNode = nodes.find(n => n.data.label === "Prometheus");
         const serverNode = nodes.find(n => n.data.label === "Server");
         const serverLogsNode = nodes.find(n => n.data.label === "Server Logs");
         const healthAgentNode = nodes.find(n => n.data.label === "Health Agent");
         const investigatorNode = nodes.find(n => n.data.label === "Investigator Agent");
-
-        // Check for Server Logs → Investigator Agent workflow
-        if (serverLogsNode && investigatorNode) {
-            const isServerLogsInvestigatorConnected = edges.some(
-                edge =>
-                    (edge.source === serverLogsNode.id && edge.target === investigatorNode.id) ||
-                    (edge.source === investigatorNode.id && edge.target === serverLogsNode.id)
-            );
-
-            if (isServerLogsInvestigatorConnected) {
-                const logData = serverLogsNode.data.logData;
-                if (!logData) {
-                    alert("Please paste log data in the Server Logs node");
-                    return;
-                }
-
-                setIsLoadingMetrics(true);
-                setShowMetrics(true);
-
-                console.log('Investigating server logs directly...');
-
-                try {
-                    // Directly investigate logs without metrics
-                    const investigateResponse = await fetch('http://localhost:8000/automation/investigate-logs', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            log_data: logData
-                        })
-                    });
-
-                    if (!investigateResponse.ok) {
-                        const errorData = await investigateResponse.json();
-                        throw new Error(errorData.detail || 'Failed to investigate logs');
-                    }
-
-                    const investigateResult = await investigateResponse.json();
-                    console.log('Investigation result:', investigateResult);
-
-                    // Store data for investigator observability page
-                    const investigatorData = {
-                        investigation: investigateResult.investigation,
-                        metrics: [],
-                        rawMetrics: null,
-                        timestamp: new Date().toISOString(),
-                        source: "Server Logs (Direct Input)"
-                    };
-
-                    localStorage.setItem('investigatorData', JSON.stringify(investigatorData));
-
-                    // Format investigation for display in sidebar
-                    const investigationDisplay = `
-=== INVESTIGATION REPORT ===
-
-Status: ${investigateResult.investigation.status.toUpperCase()}
-
-${investigateResult.investigation.summary ? `
-Log Analysis:
-  Total Lines: ${investigateResult.investigation.summary.total_lines_scanned}
-  Errors: ${investigateResult.investigation.summary.error_count}
-  Critical: ${investigateResult.investigation.summary.critical_count}` : ''}
-
-✅ Investigation complete! Redirecting to Investigator Dashboard...
-                    `.trim();
-
-                    setMetricsData(investigationDisplay);
-
-                    // Navigate to investigator page after a short delay
-                    setTimeout(() => {
-                        router.push('/observability/investigator');
-                    }, 2000);
-
-                    setIsLoadingMetrics(false);
-                    return; // Exit early for this workflow
-                } catch (error) {
-                    console.error("Error in workflow:", error);
-                    setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
-                    setIsLoadingMetrics(false);
-                    return;
-                }
-            }
-        }
-
-        // Check for Server Logs → Reliability Agent workflow (using Server node for metrics)
         const reliabilityNode = nodes.find(n => n.data.label === "Reliability Agent");
-        if (serverNode && reliabilityNode) {
-            const isServerReliabilityConnected = edges.some(
-                edge =>
-                    (edge.source === serverNode.id && edge.target === reliabilityNode.id) ||
-                    (edge.source === reliabilityNode.id && edge.target === serverNode.id)
-            );
-
-            if (isServerReliabilityConnected) {
-                const apiEndpoint = serverNode.data.apiEndpoint;
-                if (!apiEndpoint) {
-                    alert("Please enter an API endpoint in the Server node");
-                    return;
-                }
-
-                setIsLoadingMetrics(true);
-                setShowMetrics(true);
-
-                console.log('Analyzing reliability from:', apiEndpoint);
-
-                try {
-                    // Step 1: Fetch metrics from server
-                    const metricsResponse = await fetch('http://localhost:8000/automation/metrics', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            endpoint: apiEndpoint
-                        })
-                    });
-
-                    if (!metricsResponse.ok) {
-                        const errorData = await metricsResponse.json();
-                        throw new Error(errorData.detail || 'Failed to fetch metrics');
-                    }
-
-                    const metricsResult = await metricsResponse.json();
-
-                    // Step 2: Analyze reliability
-                    const reliabilityResponse = await fetch('http://localhost:8000/automation/analyze-reliability', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                            metrics_data: metricsResult.data
-                        })
-                    });
-
-                    if (!reliabilityResponse.ok) {
-                        const errorData = await reliabilityResponse.json();
-                        throw new Error(errorData.detail || 'Failed to analyze reliability');
-                    }
-
-                    const reliabilityResult = await reliabilityResponse.json();
-                    console.log('Reliability analysis result:', reliabilityResult);
-
-                    // Store data for reliability observability page
-                    const reliabilityData = {
-                        reliability: reliabilityResult.reliability,
-                        metrics: reliabilityResult.metrics,
-                        rawMetrics: reliabilityResult.raw_metrics,
-                        timestamp: new Date().toISOString(),
-                        source: apiEndpoint
-                    };
-
-                    localStorage.setItem('reliabilityData', JSON.stringify(reliabilityData));
-
-                    // Format reliability for display in sidebar
-                    const reliabilityDisplay = `
-=== RELIABILITY ANALYSIS ===
-
-Score: ${reliabilityResult.reliability.reliability_score}
-Status: ${reliabilityResult.reliability.status.toUpperCase()}
-
-${reliabilityResult.reliability.predicted_risks?.length > 0 ? `\nPredicted Risks:\n${reliabilityResult.reliability.predicted_risks.map((risk: any) => `  - ${risk.type} (${Math.round(risk.probability * 100)}% probability)`).join('\n')}` : '\nNo risks predicted'}
-
-✅ Analysis complete! Redirecting to Reliability Dashboard...
-                    `.trim();
-
-                    setMetricsData(reliabilityDisplay);
-
-                    // Navigate to reliability page after a short delay
-                    setTimeout(() => {
-                        router.push('/observability/reliability');
-                    }, 2000);
-
-                    setIsLoadingMetrics(false);
-                    return; // Exit early for this workflow
-                } catch (error) {
-                    console.error("Error in workflow:", error);
-                    setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
-                    setIsLoadingMetrics(false);
-                    return;
-                }
-            }
-        }
-
-        // Original Server + Prometheus workflow
-        if (!prometheusNode || !serverNode) {
-            alert("Please add both Prometheus and Server nodes");
-            return;
-        }
-
-        // Check if Prometheus and Server are connected
-        const isPrometheusServerConnected = edges.some(
-            edge =>
-                (edge.source === prometheusNode.id && edge.target === serverNode.id) ||
-                (edge.source === serverNode.id && edge.target === prometheusNode.id)
-        );
-
-        if (!isPrometheusServerConnected) {
-            alert("Please connect Prometheus and Server nodes");
-            return;
-        }
-
-        const apiEndpoint = serverNode.data.apiEndpoint;
-        if (!apiEndpoint) {
-            alert("Please enter an API endpoint in the Server node");
-            return;
-        }
-
-        // Check if Health Agent is connected to Prometheus
-        const isHealthAgentConnected = healthAgentNode && edges.some(
-            edge =>
-                (edge.source === prometheusNode.id && edge.target === healthAgentNode.id) ||
-                (edge.source === healthAgentNode.id && edge.target === prometheusNode.id)
-        );
-
-        // Check if Investigator (Log Analyzer) is connected to Prometheus
-        const isInvestigatorConnected = investigatorNode && edges.some(
-            edge =>
-                (edge.source === prometheusNode.id && edge.target === investigatorNode.id) ||
-                (edge.source === investigatorNode.id && edge.target === prometheusNode.id)
-        );
-
-        setIsLoadingMetrics(true);
-        setShowMetrics(true);
-
-        console.log('Fetching metrics from:', apiEndpoint);
-        console.log('Health Agent connected:', isHealthAgentConnected);
-        console.log('Investigator connected:', isInvestigatorConnected);
 
         try {
-            // Step 1: Fetch metrics from server via Prometheus
-            const metricsResponse = await fetch('http://localhost:8000/automation/metrics', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    endpoint: apiEndpoint
-                })
-            });
+            // --- Flow 1: Server Logs -> Investigator Agent ---
+            if (serverLogsNode && investigatorNode) {
+                const isConnected = edges.some(edge =>
+                    (edge.source === serverLogsNode.id && edge.target === investigatorNode.id) ||
+                    (edge.source === investigatorNode.id && edge.target === serverLogsNode.id)
+                );
 
-            console.log('Metrics response status:', metricsResponse.status);
+                if (isConnected) {
+                    console.log("[Flow 1] Executing Server Logs -> Investigator...");
+                    try {
+                        const logData = serverLogsNode.data.logData;
+                        if (!logData) throw new Error("No log data provided in Server Logs node");
 
-            if (!metricsResponse.ok) {
-                const errorData = await metricsResponse.json();
-                console.error('Error response:', errorData);
-                throw new Error(errorData.detail || 'Failed to fetch metrics');
+                        const res = await fetch('http://localhost:8000/automation/investigate-logs', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ log_data: logData })
+                        });
+
+                        if (!res.ok) {
+                            const err = await res.json();
+                            throw new Error(err.detail || "Investigation failed");
+                        }
+
+                        const data = await res.json();
+                        executionResults.push({
+                            agentIds: [serverLogsNode.id, investigatorNode.id],
+                            agentName: "Investigator Agent (Logs)",
+                            agentType: "investigatorAgent",
+                            status: "success",
+                            summary: `Investigated server logs.\nStatus: ${data.investigation.status}`,
+                            details: data.investigation,
+                            timestamp: new Date().toISOString()
+                        });
+
+                    } catch (e) {
+                        console.error("[Flow 1] Error:", e);
+                        executionResults.push({
+                            agentIds: [serverLogsNode.id, investigatorNode.id],
+                            agentName: "Investigator Agent (Logs)",
+                            agentType: "investigatorAgent",
+                            status: "error",
+                            summary: `Failed to investigate logs: ${e instanceof Error ? e.message : String(e)}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
             }
 
-            const metricsResult = await metricsResponse.json();
-            console.log('Metrics fetched successfully');
+            // --- Flow 2: Server -> Reliability Agent ---
+            if (serverNode && reliabilityNode) {
+                const isConnected = edges.some(edge =>
+                    (edge.source === serverNode.id && edge.target === reliabilityNode.id) ||
+                    (edge.source === reliabilityNode.id && edge.target === serverNode.id)
+                );
 
-            // Step 2: If Health Agent is connected, analyze health
-            if (isHealthAgentConnected) {
-                console.log('Analyzing health with Health Agent...');
+                if (isConnected) {
+                    console.log("[Flow 2] Executing Server -> Reliability Agent...");
+                    try {
+                        const endpoint = serverNode.data.apiEndpoint;
+                        if (!endpoint) throw new Error("No API endpoint in Server node");
 
-                const healthResponse = await fetch('http://localhost:8000/automation/analyze-health', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        metrics_data: metricsResult.data
-                    })
-                });
+                        // Fetch metrics first
+                        const metricsRes = await fetch('http://localhost:8000/automation/metrics', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ endpoint })
+                        });
 
-                if (!healthResponse.ok) {
-                    const errorData = await healthResponse.json();
-                    throw new Error(errorData.detail || 'Failed to analyze health');
+                        if (!metricsRes.ok) throw new Error("Failed to fetch metrics");
+                        const metricsData = await metricsRes.json();
+
+                        // Analyze reliability
+                        const relRes = await fetch('http://localhost:8000/automation/analyze-reliability', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ metrics_data: metricsData.data })
+                        });
+
+                        if (!relRes.ok) throw new Error("Reliability analysis failed");
+                        const relData = await relRes.json();
+
+                        executionResults.push({
+                            agentIds: [serverNode.id, reliabilityNode.id],
+                            agentName: "Reliability Agent",
+                            agentType: "reliabilityAgent",
+                            status: relData.reliability.status === "critical" ? "warning" : "success",
+                            summary: `Reliability Score: ${relData.reliability.reliability_score}\nStatus: ${relData.reliability.status}`,
+                            details: relData.reliability,
+                            timestamp: new Date().toISOString()
+                        });
+
+                    } catch (e) {
+                        console.error("[Flow 2] Error:", e);
+                        executionResults.push({
+                            agentIds: [serverNode.id, reliabilityNode.id],
+                            agentName: "Reliability Agent",
+                            agentType: "reliabilityAgent",
+                            status: "error",
+                            summary: `Analysis failed: ${e instanceof Error ? e.message : String(e)}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
                 }
-
-                const healthResult = await healthResponse.json();
-                console.log('Health analysis result:', healthResult);
-
-                // Store data for observability page
-                const observabilityData = {
-                    health: {
-                        health: healthResult.health_status,
-                        issues: healthResult.issues
-                    },
-                    metrics: healthResult.metrics,
-                    rawMetrics: healthResult.raw_metrics,  // Include raw Prometheus metrics
-                    timestamp: new Date().toISOString(),
-                    source: apiEndpoint
-                };
-
-                localStorage.setItem('observabilityData', JSON.stringify(observabilityData));
-
-                // Format health analysis for display in sidebar
-                const healthDisplay = `
-=== HEALTH ANALYSIS ===
-
-Status: ${healthResult.health_status.toUpperCase()}
-${healthResult.issues.length > 0 ? `\nIssues Found:\n${healthResult.issues.map((issue: string) => `  - ${issue}`).join('\n')}` : '\nNo issues detected'}
-
-=== KEY METRICS ===
-${healthResult.metrics.map((m: any) => `${m.metric}: ${m.value}`).join('\n')}
-
-✅ Data saved! Redirecting to Observability Dashboard...
-                `.trim();
-
-                setMetricsData(healthDisplay);
-
-                // Navigate to observability page after a short delay
-                setTimeout(() => {
-                    router.push('/observability/prometheus');
-                }, 2000);
-            } else if (isInvestigatorConnected) {
-                // Investigator Agent is connected
-                console.log('Investigating with Investigator Agent...');
-
-                const investigateResponse = await fetch('http://localhost:8000/automation/investigate', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        metrics_data: metricsResult.data
-                    })
-                });
-
-                if (!investigateResponse.ok) {
-                    const errorData = await investigateResponse.json();
-                    throw new Error(errorData.detail || 'Failed to investigate');
-                }
-
-                const investigateResult = await investigateResponse.json();
-                console.log('Investigation result:', investigateResult);
-
-                // Store data for investigator observability page
-                const investigatorData = {
-                    investigation: investigateResult.investigation,
-                    metrics: investigateResult.metrics,
-                    rawMetrics: investigateResult.raw_metrics,
-                    timestamp: new Date().toISOString(),
-                    source: apiEndpoint
-                };
-
-                localStorage.setItem('investigatorData', JSON.stringify(investigatorData));
-
-                // Format investigation for display in sidebar
-                const investigationDisplay = `
-=== INVESTIGATION REPORT ===
-
-Status: ${investigateResult.investigation.status.toUpperCase()}
-
-${investigateResult.investigation.summary ? `
-Log Analysis:
-  Total Lines: ${investigateResult.investigation.summary.total_lines_scanned}
-  Errors: ${investigateResult.investigation.summary.error_count}
-  Critical: ${investigateResult.investigation.summary.critical_count}
-  Metric Issues: ${investigateResult.investigation.summary.metric_issues_count}` : ''}
-
-${investigateResult.investigation.metric_issues?.length > 0 ? `\nMetric Issues:\n${investigateResult.investigation.metric_issues.map((issue: string) => `  - ${issue}`).join('\n')}` : ''}
-
-✅ Investigation complete! Redirecting to Investigator Dashboard...
-                `.trim();
-
-                setMetricsData(investigationDisplay);
-
-                // Navigate to investigator page after a short delay
-                setTimeout(() => {
-                    router.push('/observability/investigator');
-                }, 2000);
-            } else {
-                // No Health Agent or Investigator, show raw metrics
-                console.log('No agent connected, showing raw metrics');
-                setMetricsData(metricsResult.data);
             }
 
-            console.log('Data displayed successfully');
+            // --- Flow 3: Prometheus -> Health / Investigator ---
+            // Only strictly requires Prometheus + connection to Agent. Server node is optional if Prom URL is direct?
+            // Existing logic checked for Server node supplying the endpoint. We will maintain that dependency.
+            if (serverNode && prometheusNode) {
+                const isPromConnected = edges.some(edge =>
+                    (edge.source === serverNode.id && edge.target === prometheusNode.id) ||
+                    (edge.source === prometheusNode.id && edge.target === serverNode.id)
+                );
+
+                if (isPromConnected) {
+                    const isHealthConnected = healthAgentNode && edges.some(edge =>
+                        (edge.source === prometheusNode.id && edge.target === healthAgentNode.id) ||
+                        (edge.source === healthAgentNode.id && edge.target === prometheusNode.id)
+                    );
+
+                    const isInvestigatorConnected = investigatorNode && edges.some(edge =>
+                        (edge.source === prometheusNode.id && edge.target === investigatorNode.id) ||
+                        (edge.source === investigatorNode.id && edge.target === prometheusNode.id)
+                    );
+
+                    if (isHealthConnected || isInvestigatorConnected) {
+                        console.log("[Flow 3] Executing Prometheus Flows...");
+                        try {
+                            const endpoint = serverNode.data.apiEndpoint;
+                            if (!endpoint) throw new Error("No API endpoint in Server node");
+
+                            // Fetch metrics
+                            const metricsRes = await fetch('http://localhost:8000/automation/metrics', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ endpoint })
+                            });
+
+                            if (!metricsRes.ok) throw new Error("Failed to fetch Prometheus metrics");
+                            const metricsData = await metricsRes.json();
+
+                            // 3a. Health Agent
+                            if (isHealthConnected) {
+                                try {
+                                    const hRes = await fetch('http://localhost:8000/automation/analyze-health', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ metrics_data: metricsData.data })
+                                    });
+
+                                    if (!hRes.ok) throw new Error("Health analysis failed");
+                                    const hData = await hRes.json();
+
+                                    executionResults.push({
+                                        agentIds: [serverNode.id, prometheusNode.id, healthAgentNode!.id],
+                                        agentName: "Health Agent",
+                                        agentType: "healthAgent",
+                                        status: hData.health_status === "healthy" ? "success" : "warning",
+                                        summary: `Health Status: ${hData.health_status}\nIssues: ${hData.issues.length}`,
+                                        details: hData,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                } catch (e) {
+                                    executionResults.push({
+                                        agentIds: [healthAgentNode!.id],
+                                        agentName: "Health Agent",
+                                        agentType: "healthAgent",
+                                        status: "error",
+                                        summary: `Health Check Failed: ${e instanceof Error ? e.message : String(e)}`,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                }
+                            }
+
+                            // 3b. Investigator Agent (Metrics)
+                            if (isInvestigatorConnected) {
+                                try {
+                                    const iRes = await fetch('http://localhost:8000/automation/investigate', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ metrics_data: metricsData.data })
+                                    });
+
+                                    if (!iRes.ok) throw new Error("Investigation failed");
+                                    const iData = await iRes.json();
+
+                                    executionResults.push({
+                                        agentIds: [serverNode.id, prometheusNode.id, investigatorNode!.id],
+                                        agentName: "Investigator Agent (Metrics)",
+                                        agentType: "investigatorAgent",
+                                        status: iData.investigation.status === "healthy" ? "success" : "warning",
+                                        summary: `Metric Investigation: ${iData.investigation.status}`,
+                                        details: iData.investigation,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                } catch (e) {
+                                    executionResults.push({
+                                        agentIds: [investigatorNode!.id],
+                                        agentName: "Investigator Agent (Metrics)",
+                                        agentType: "investigatorAgent",
+                                        status: "error",
+                                        summary: `Investigation Failed: ${e instanceof Error ? e.message : String(e)}`,
+                                        timestamp: new Date().toISOString()
+                                    });
+                                }
+                            }
+
+                        } catch (e) {
+                            console.error("Prometheus Flow Error:", e);
+                            // If fetching metrics failed, both agents fail
+                            executionResults.push({
+                                agentIds: [],
+                                agentName: "Prometheus Metrics",
+                                agentType: "prometheus",
+                                status: "error",
+                                summary: `Failed to fetch metrics for agents: ${e instanceof Error ? e.message : String(e)}`,
+                                timestamp: new Date().toISOString()
+                            });
+                        }
+                    }
+                }
+            }
+
+            // --- Finish ---
+            if (executionResults.length === 0) {
+                alert("No valid connections found. Connect nodes to form a workflow (e.g. Server -> Reliability Agent).");
+                return;
+            }
+
+            // Save and Redirect
+            console.log("Execution Results:", executionResults);
+            localStorage.setItem("unifiedDashboardData", JSON.stringify(executionResults));
+            router.push("/observability/dashboard");
+
         } catch (error) {
-            console.error("Error in workflow:", error);
-            setMetricsData(`Error: ${error instanceof Error ? error.message : String(error)}`);
+            console.error("Global Execution Error:", error);
+            alert(`Execution error: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             setIsLoadingMetrics(false);
         }
