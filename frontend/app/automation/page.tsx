@@ -118,6 +118,61 @@ const CustomNode = ({ data, id }: { data: any; id: string }) => {
                 </div>
             )}
 
+            {/* Email Composition for Send Mail Node */}
+            {data.label === "Send Mail" && (
+                <div className="mt-3 space-y-2 min-w-[280px]">
+                    <div className="bg-gradient-to-br from-green-50 to-emerald-50 p-3 rounded-lg border border-green-200 shadow-sm">
+                        {/* Recipient */}
+                        <div className="space-y-1">
+                            <label className="text-xs font-semibold text-green-900 flex items-center gap-1">
+                                <Mail className="size-3" />
+                                Recipient
+                            </label>
+                            <Input
+                                type="email"
+                                placeholder="recipient@example.com"
+                                value={data.recipientEmail || ""}
+                                onChange={(e) => data.onEmailChange?.(id, e.target.value)}
+                                className="text-xs h-8 text-black bg-white border-green-300 focus:border-green-500 focus:ring-green-500"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
+
+                        {/* Subject */}
+                        <div className="space-y-1 mt-2">
+                            <label className="text-xs font-semibold text-green-900 flex items-center gap-1">
+                                <FileText className="size-3" />
+                                Subject
+                            </label>
+                            <Input
+                                type="text"
+                                placeholder="Email subject line"
+                                value={data.emailSubject || ""}
+                                onChange={(e) => data.onEmailSubjectChange?.(id, e.target.value)}
+                                className="text-xs h-8 text-black bg-white border-green-300 focus:border-green-500 focus:ring-green-500"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
+
+                        {/* Message Body */}
+                        <div className="space-y-1 mt-2">
+                            <label className="text-xs font-semibold text-green-900 flex items-center gap-1">
+                                <MessageSquare className="size-3" />
+                                Message
+                            </label>
+                            <textarea
+                                placeholder="Type your message here..."
+                                value={data.emailBody || ""}
+                                onChange={(e) => data.onEmailBodyChange?.(id, e.target.value)}
+                                className="text-xs p-2 border border-green-300 rounded w-full h-20 text-black bg-white resize-none focus:border-green-500 focus:ring-1 focus:ring-green-500 focus:outline-none"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+
+
             {/* Output Handle (right side) */}
             <Handle
                 type="source"
@@ -201,7 +256,7 @@ export default function AutomationPage() {
     const router = useRouter();
     const [nodes, setNodes, onNodesChange] = useNodesState([] as Node[]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([] as Edge[]);
-    const [nodeId, setNodeId] = useState(0);
+    const nodeIdCounter = React.useRef(0);
     const [sidebarContent, setSidebarContent] = useState<any>(null);
     const [showSidebar, setShowSidebar] = useState(false);
     const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
@@ -233,10 +288,44 @@ export default function AutomationPage() {
         );
     }, [setNodes]);
 
+    // Handle email change for send mail nodes
+    const handleEmailChange = useCallback((nodeId: string, recipientEmail: string) => {
+        setNodes((nds) =>
+            nds.map((node) =>
+                node.id === nodeId
+                    ? { ...node, data: { ...node.data, recipientEmail } }
+                    : node
+            )
+        );
+    }, [setNodes]);
+
+    // Handle email subject change for send mail nodes
+    const handleEmailSubjectChange = useCallback((nodeId: string, emailSubject: string) => {
+        setNodes((nds) =>
+            nds.map((node) =>
+                node.id === nodeId
+                    ? { ...node, data: { ...node.data, emailSubject } }
+                    : node
+            )
+        );
+    }, [setNodes]);
+
+    // Handle email body change for send mail nodes
+    const handleEmailBodyChange = useCallback((nodeId: string, emailBody: string) => {
+        setNodes((nds) =>
+            nds.map((node) =>
+                node.id === nodeId
+                    ? { ...node, data: { ...node.data, emailBody } }
+                    : node
+            )
+        );
+    }, [setNodes]);
+
     // Add node to canvas
     const addNode = (nodeType: typeof nodeDefinitions[0]) => {
+        nodeIdCounter.current += 1;
         const newNode: Node = {
-            id: `${nodeType.type}-${nodeId}`,
+            id: `${nodeType.type}-${nodeIdCounter.current}-${Date.now()}`,
             type: "custom",
             position: {
                 x: Math.random() * 400 + 100,
@@ -248,12 +337,17 @@ export default function AutomationPage() {
                 color: nodeType.color,
                 apiEndpoint: "",
                 logData: "",
+                recipientEmail: "",
+                emailSubject: "",
+                emailBody: "",
                 onApiChange: handleApiChange,
                 onLogChange: handleLogChange,
+                onEmailChange: handleEmailChange,
+                onEmailSubjectChange: handleEmailSubjectChange,
+                onEmailBodyChange: handleEmailBodyChange,
             },
         };
         setNodes((nds) => [...nds, newNode]);
-        setNodeId((id) => id + 1);
     };
 
     // Drag and drop handlers
@@ -280,8 +374,9 @@ export default function AutomationPage() {
                 y: event.clientY - reactFlowBounds.top - 20,
             };
 
+            nodeIdCounter.current += 1;
             const newNode: Node = {
-                id: `${nodeDef.type}-${nodeId}`,
+                id: `${nodeDef.type}-${nodeIdCounter.current}-${Date.now()}`,
                 type: "custom",
                 position,
                 data: {
@@ -290,15 +385,20 @@ export default function AutomationPage() {
                     color: nodeDef.color,
                     apiEndpoint: "",
                     logData: "",
+                    recipientEmail: "",
+                    emailSubject: "",
+                    emailBody: "",
                     onApiChange: handleApiChange,
                     onLogChange: handleLogChange,
+                    onEmailChange: handleEmailChange,
+                    onEmailSubjectChange: handleEmailSubjectChange,
+                    onEmailBodyChange: handleEmailBodyChange,
                 },
             };
 
             setNodes((nds) => [...nds, newNode]);
-            setNodeId((id) => id + 1);
         },
-        [nodeId, setNodes]
+        [setNodes, handleApiChange, handleLogChange, handleEmailChange, handleEmailSubjectChange, handleEmailBodyChange]
     );
 
     const onDragStart = (event: React.DragEvent, nodeType: string) => {
@@ -313,6 +413,7 @@ export default function AutomationPage() {
         setSidebarContent(null);
 
         const executionResults: any[] = [];
+        let latestAlertData: any = null; // Track alert data locally for email sending
 
         // Find nodes
         const prometheusNode = nodes.find(n => n.data.label === "Prometheus");
@@ -484,14 +585,17 @@ export default function AutomationPage() {
                         if (!alertRes.ok) throw new Error("Alert analysis failed");
                         const alertData = await alertRes.json();
 
-                        // Set sidebar content with alert details
+                        // Store alert data locally for email sending
                         if (alertData.alert && alertData.alert.status === "success") {
-                            setSidebarContent({
+                            latestAlertData = {
                                 agentName: "Alert Agent",
                                 agentType: "alertAgent",
                                 data: alertData.alert.analysis,
                                 timestamp: alertData.alert.timestamp
-                            });
+                            };
+
+                            // Set sidebar content with alert details
+                            setSidebarContent(latestAlertData);
                             setShowSidebar(true);
                         }
 
@@ -558,13 +662,16 @@ export default function AutomationPage() {
                                 : "Continue monitoring logs for any anomalies"
                         };
 
-                        // Set sidebar content with alert details
-                        setSidebarContent({
+                        // Store alert data locally for email sending
+                        latestAlertData = {
                             agentName: "Alert Agent (Logs)",
                             agentType: "alertAgent",
                             data: alertAnalysis,
                             timestamp: Math.floor(Date.now() / 1000)
-                        });
+                        };
+
+                        // Set sidebar content with alert details
+                        setSidebarContent(latestAlertData);
                         setShowSidebar(true);
 
                         executionResults.push({
@@ -591,6 +698,71 @@ export default function AutomationPage() {
                 }
             }
 
+
+            // --- Flow 4c: Alert Agent → Send Mail ---
+            const sendMailNode = nodes.find(n => n.data.label === "Send Mail");
+            if (alertAgentNode && sendMailNode) {
+                const isConnected = edges.some(edge =>
+                    (edge.source === alertAgentNode.id && edge.target === sendMailNode.id) ||
+                    (edge.source === sendMailNode.id && edge.target === alertAgentNode.id)
+                );
+
+                if (isConnected && latestAlertData && latestAlertData.agentType === "alertAgent") {
+                    console.log("[Flow 4c] Executing Alert Agent → Send Mail...");
+                    try {
+                        const recipientEmail = sendMailNode.data.recipientEmail;
+                        const emailSubject = sendMailNode.data.emailSubject;
+                        const emailBody = sendMailNode.data.emailBody;
+
+                        if (!recipientEmail) throw new Error("No recipient email in Send Mail node");
+
+                        // Prepare email payload - use custom subject/body if provided, otherwise use alert data
+                        const emailPayload: any = {
+                            to_email: recipientEmail,
+                        };
+
+                        if (emailSubject && emailBody) {
+                            // Custom email mode
+                            emailPayload.subject = emailSubject;
+                            emailPayload.body = emailBody;
+                        } else {
+                            // Alert-based email mode
+                            emailPayload.alert_data = latestAlertData.data;
+                        }
+
+                        // Send email
+                        const res = await fetch('http://localhost:8000/automation/send-email', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(emailPayload)
+                        });
+
+                        if (!res.ok) throw new Error("Failed to send email");
+                        const emailData = await res.json();
+
+                        executionResults.push({
+                            agentIds: [alertAgentNode.id, sendMailNode.id],
+                            agentName: "Email Notification",
+                            agentType: "sendMail",
+                            status: "success",
+                            summary: `Email sent to ${recipientEmail}${emailSubject ? ` - ${emailSubject}` : ''}`,
+                            details: emailData,
+                            timestamp: new Date().toISOString()
+                        });
+
+                    } catch (e) {
+                        console.error("[Flow 4c] Error:", e);
+                        executionResults.push({
+                            agentIds: [alertAgentNode.id, sendMailNode.id],
+                            agentName: "Email Notification",
+                            agentType: "sendMail",
+                            status: "error",
+                            summary: `Email failed: ${e instanceof Error ? e.message : String(e)}`,
+                            timestamp: new Date().toISOString()
+                        });
+                    }
+                }
+            }
             // --- Flow 5: Prometheus -> Health / Investigator ---
             // Only strictly requires Prometheus + connection to Agent. Server node is optional if Prom URL is direct?
             // Existing logic checked for Server node supplying the endpoint. We will maintain that dependency.
@@ -746,7 +918,10 @@ export default function AutomationPage() {
                             ...node.data,
                             icon: def ? def.icon : Server, // Fallback to Server icon if not found
                             onApiChange: handleApiChange,
-                            onLogChange: handleLogChange
+                            onLogChange: handleLogChange,
+                            onEmailChange: handleEmailChange,
+                            onEmailSubjectChange: handleEmailSubjectChange,
+                            onEmailBodyChange: handleEmailBodyChange
                         }
                     };
                 });
@@ -757,7 +932,7 @@ export default function AutomationPage() {
                 console.error("Failed to load graph", e);
             }
         }
-    }, [handleApiChange, handleLogChange]);
+    }, [handleApiChange, handleLogChange, handleEmailChange, handleEmailSubjectChange, handleEmailBodyChange]);
 
     // Persistence Save
     React.useEffect(() => {

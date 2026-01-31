@@ -9,6 +9,7 @@ from app.services.health_agent import health_agent
 from app.services.investigator_agent import investigator_agent
 from app.services.reliabilit_agent import reliability_agent
 from app.services.alert_agent import alert_agent
+from app.services.email_service import email_service
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -293,3 +294,54 @@ async def fetch_system_logs(request: FetchLogsRequest):
     except Exception as e:
         logger.error(f"Error fetching logs: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error fetching logs: {str(e)}")
+
+class SendEmailRequest(BaseModel):
+    to_email: str
+    alert_data: dict = None  # Optional, for alert-based emails
+    subject: str = None  # Optional, for custom emails
+    body: str = None  # Optional, for custom emails
+
+@router.post("/send-email")
+async def send_alert_email(request: SendEmailRequest):
+    """
+    Sends email - either custom (with subject/body) or alert-based.
+    """
+    try:
+        logger.info(f"Sending email to {request.to_email}")
+        
+        # Validate email
+        if not request.to_email:
+            raise HTTPException(status_code=400, detail="Recipient email is required")
+        
+        # Determine email type and send accordingly
+        if request.subject and request.body:
+            # Custom email mode
+            logger.info("Sending custom email with subject and body")
+            result = email_service.send_custom_email(
+                to_email=request.to_email,
+                subject=request.subject,
+                body=request.body
+            )
+        elif request.alert_data:
+            # Alert-based email mode
+            logger.info("Sending alert-based email")
+            result = email_service.send_alert_email(
+                to_email=request.to_email,
+                alert_data=request.alert_data
+            )
+        else:
+            raise HTTPException(
+                status_code=400, 
+                detail="Either (subject and body) or alert_data must be provided"
+            )
+        
+        if not result.get("success"):
+            raise HTTPException(status_code=500, detail=result.get("message", "Failed to send email"))
+        
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error sending email: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error sending email: {str(e)}")

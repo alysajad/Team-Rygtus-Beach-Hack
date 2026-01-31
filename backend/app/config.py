@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     # In a real app, we might need these for OAuth, but for PAT we just need the token from the request.
     # Keeping them here just in case.
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
+    GMAIL_USER: str = os.getenv("GMAIL_USER", "")
+    GMAIL_APP_PASSWORD: str = os.getenv("GMAIL_APP_PASSWORD", "")
     GITHUB_CLIENT_ID: str = ""
     GITHUB_CLIENT_SECRET: str = ""
     GITHUB_REDIRECT_URI: str = "http://localhost:8000/oauth/callback"
