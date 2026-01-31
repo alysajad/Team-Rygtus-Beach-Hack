@@ -183,6 +183,7 @@ export default function AutomationPage() {
     const [nodeId, setNodeId] = useState(0);
     const [sidebarContent, setSidebarContent] = useState<any>(null);
     const [showSidebar, setShowSidebar] = useState(false);
+    const [isLoadingMetrics, setIsLoadingMetrics] = useState(false);
 
     const onConnect = useCallback(
         (params: Edge | Connection) => setEdges((eds) => addEdge(params, eds)),
@@ -286,6 +287,7 @@ export default function AutomationPage() {
 
     // Execute workflow - run all matching distinct patterns
     const executeWorkflow = async () => {
+        setIsLoadingMetrics(true);
         setShowSidebar(false); // Hide sidebar during execution
         setSidebarContent(null);
 
@@ -689,17 +691,20 @@ export default function AutomationPage() {
             // --- Finish ---
             if (executionResults.length === 0) {
                 alert("No valid connections found. Connect nodes to form a workflow (e.g. Server -> Reliability Agent).");
+                setIsLoadingMetrics(false);
                 return;
             }
 
             // Save and Redirect
             console.log("Execution Results:", executionResults);
             localStorage.setItem("unifiedDashboardData", JSON.stringify(executionResults));
+            setIsLoadingMetrics(false);
             router.push("/observability/dashboard");
 
         } catch (error) {
             console.error("Global Execution Error:", error);
             alert(`Execution error: ${error instanceof Error ? error.message : String(error)}`);
+            setIsLoadingMetrics(false);
         }
     };
 
@@ -799,8 +804,9 @@ export default function AutomationPage() {
                     variant="default"
                     onClick={executeWorkflow}
                     className="mr-2"
+                    disabled={isLoadingMetrics}
                 >
-                    Execute
+                    {isLoadingMetrics ? "Executing..." : "Execute"}
                 </Button>
                 <Button variant="outline">Save Workflow</Button>
             </div>
