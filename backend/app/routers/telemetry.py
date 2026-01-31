@@ -15,7 +15,7 @@ def get_raw_prometheus_metrics(url: Optional[str] = Query(None, description="Pro
     Otherwise, it defaults to a known demo endpoint or raises an error if env var not set (for now just optional).
     """
     # We'll use a public demo for easy verification if user doesn't provide one.
-    target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+    target_url = url if url else "http://localhost:9090/metrics"
     
     try:
         raw_text = prometheus_service.fetch_prometheus_metrics(target_url)
@@ -34,7 +34,7 @@ def get_normalized_prometheus_metrics(url: Optional[str] = Query(None, descripti
         # Better to reuse service directly.
         from app.services.normalization import normalization_service
         
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         raw_text = prometheus_service.fetch_prometheus_metrics(target_url)
         raw_metrics = prometheus_service.parse_metrics(raw_text)
         

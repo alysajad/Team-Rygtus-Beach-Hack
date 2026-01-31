@@ -250,6 +250,12 @@ const nodeDefinitions = [
         icon: Bell,
         color: "#ef4444",
     },
+    {
+        type: "httpRequest",
+        label: "HTTP Request",
+        icon: Globe,
+        color: "#8b5cf6",
+    },
 ];
 
 export default function AutomationPage() {
@@ -654,12 +660,13 @@ export default function AutomationPage() {
                         const data = await res.json();
 
                         // Transform investigation result to alert format
+                        // Prioritize AI-generated fields (issue, why, suggestion) if available
                         const alertAnalysis = {
-                            issue: data.investigation.message || "Log Analysis Complete",
-                            why: `Analysis of server logs revealed: ${data.investigation.status}`,
-                            suggestion: data.investigation.errors?.length > 0
+                            issue: data.investigation.issue || data.investigation.message || "Log Analysis Complete",
+                            why: data.investigation.why || `Analysis of server logs revealed: ${data.investigation.status}`,
+                            suggestion: data.investigation.suggestion || (data.investigation.errors?.length > 0
                                 ? `Address the following errors: ${data.investigation.errors.join(", ")}`
-                                : "Continue monitoring logs for any anomalies"
+                                : "Continue monitoring logs for any anomalies")
                         };
 
                         // Store alert data locally for email sending

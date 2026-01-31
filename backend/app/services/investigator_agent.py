@@ -1,10 +1,14 @@
 from typing import Dict, Any, List
 import os
+import json
+import time
+import requests
+from app.config import settings
 
 class InvestigatorAgent:
     def investigate(self, log_path: str = "app.log", normalized_metrics: List[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Analyzes the log file for errors and critical issues.
+        Analyzes the log file for errors and critical issues using Gemini AI.
         Returns a summary including error counts and context snippets.
         """
         issues = []
@@ -21,7 +25,7 @@ class InvestigatorAgent:
                         
                     total_lines = len(lines)
                     
-                    # Simple window based context extraction
+                    # Simple window based context extraction to find error candidates
                     i = 0
                     while i < len(lines):
                         line = lines[i].strip()
@@ -36,10 +40,9 @@ class InvestigatorAgent:
                             if is_critical:
                                 critical_count += 1
                                 
-                            
-                            # Capture context: 2 lines before, current line, 5 lines after (for tracebacks)
+                            # Capture context: 2 lines before, current line, 10 lines after (for tracebacks)
                             start_idx = max(0, i - 2)
-                            end_idx = min(len(lines), i + 6)
+                            end_idx = min(len(lines), i + 10)
                             
                             context = lines[start_idx:end_idx]
                             
@@ -62,10 +65,29 @@ class InvestigatorAgent:
                         else:
                             i += 1
                 except Exception as e:
-                    # Log read error but continue
                     print(f"Error reading log file: {e}")
             
-            # Metric Analysis
+            # --- AI Analysis ---
+            if snippets:
+                # If we found error snippets, use AI to analyze them
+                analysis = self._analyze_with_ai(snippets)
+                
+                # Merge AI results with basic stats
+                return {
+                    "status": analysis.get("status", "warning"), # Default to warning if errors found
+                    "message": analysis.get("message", "Errors detected in logs."),
+                    "errors": analysis.get("errors", []),
+                    "log_path": log_path,
+                    "summary": {
+                        "total_lines_scanned": total_lines,
+                        "error_count": error_count,
+                        "critical_count": critical_count,
+                        "ai_analysis": True
+                    },
+                    "snippets": snippets[:5] # Return raw snippets too as backup
+                }
+            
+            # Fallback if no errors found in logs but metrics are provided
             metric_issues = []
             if normalized_metrics:
                 for m in normalized_metrics:
@@ -76,38 +98,23 @@ class InvestigatorAgent:
                         metric_issues.append("High CPU usage (> 0.8 load)")
                     elif metric_name == "memory_used_percent" and value > 0.85:
                         metric_issues.append("High Memory usage (> 85%)")
-                    elif metric_name == "disk_free_percent" and value < 0.15:
-                        metric_issues.append("Low disk space (< 15% free)")
 
-            # Construct a clear message
-            msgs = []
+            if not snippets and not metric_issues:
+                 return {
+                    "status": "success",
+                    "message": "No errors or anomalies found in logs or metrics.",
+                    "log_path": log_path,
+                    "summary": {
+                        "total_lines_scanned": total_lines,
+                        "error_count": 0
+                    }
+                }
             
-            if len(snippets) > 0:
-                line_nums = ", ".join([str(s['line_number']) for s in snippets])
-                msgs.append(f"Errors found in logs at lines: {line_nums}.")
-            elif total_lines > 0:
-                msgs.append("No errors found in the input logs.")
-            else:
-                 msgs.append("No input logs found or file is empty.")
-
-            if len(metric_issues) > 0:
-                issues_str = "; ".join(metric_issues)
-                msgs.append(f"Metric Anomalies: {issues_str}.")
-
-            analysis_message = " ".join(msgs)
-
             return {
-                "status": "success",
-                "message": analysis_message,
-                "log_path": log_path,
-                "summary": {
-                    "total_lines_scanned": total_lines,
-                    "error_count": error_count,
-                    "critical_count": critical_count,
-                    "metric_issues_count": len(metric_issues)
-                },
+                "status": "warning",
+                "message": "Metric anomalies detected.",
                 "metric_issues": metric_issues,
-                "snippets": snippets[:10]
+                "log_path": log_path
             }
             
         except Exception as e:
@@ -115,5 +122,66 @@ class InvestigatorAgent:
                 "error": str(e),
                 "status": "failed"
             }
+
+    def _analyze_with_ai(self, snippets: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Calls Gemini to analyze the extracted error snippets."""
+        api_key = settings.GEMINI_API_KEY
+        if not api_key:
+             return {
+                "issue": "Errors detected (AI unavailable)",
+                "why": "No API Key configured for Gemini.",
+                "suggestion": "Configure GEMINI_API_KEY in .env",
+                "status": "warning"
+            }
+
+        prompt = self._construct_prompt(snippets)
+
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
+            payload = {
+                "contents": [{
+                    "parts": [{"text": prompt}]
+                }],
+                "generationConfig": {
+                    "response_mime_type": "application/json"
+                }
+            }
+            
+            response = requests.post(url, json=payload, timeout=20)
+            response.raise_for_status()
+            result = response.json()
+            
+            text_content = result["candidates"][0]["content"]["parts"][0]["text"]
+            return json.loads(text_content)
+
+        except Exception as e:
+            print(f"AI Analysis failed: {e}")
+            return {
+                "issue": "Errors detected in logs",
+                "why": f"AI analysis failed: {str(e)}",
+                "suggestion": "Check server connectivity and API limits.",
+                "status": "warning"
+            }
+
+    def _construct_prompt(self, snippets: List[Dict[str, Any]]) -> str:
+        # Limit to first 3 snippets to save tokens/complexity
+        snippets_text = json.dumps(snippets[:3], indent=2)
+        
+        return f"""
+        You are a generic but expert Log Analyzer. Analyze the following error snippets extracted from server logs:
+
+        {snippets_text}
+
+        Your task is to summarize the error for a developer.
+        
+        Return a JSON object with this EXACT structure (all values are strings):
+        {{
+            "issue": "Issue Found: [Show the issue and the line number it occurred at]",
+            "why": "Why is the issue: [Exact reasoning in 2-3 sentences with exact position of error. Analyze the full log snippet provided]",
+            "suggestion": "How to overcome: [The most effective way to suppress or fix the error]"
+        }}
+        
+        If the snippets are just noise and not real errors, return a success message in 'issue' and explain why in 'why'.
+        """
 
 investigator_agent = InvestigatorAgent()

@@ -15,7 +15,7 @@ def get_agent_input_prometheus(url: Optional[str] = Query(None, description="Pro
     Returns high-level signals for AI agents, including trends.
     """
     try:
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         
         # Pipeline: Fetch -> Parse -> Normalize -> Agent Signal
         raw_text = prometheus_service.fetch_prometheus_metrics(target_url)
@@ -35,7 +35,7 @@ def get_health_agent_analysis(url: Optional[str] = Query(None, description="Prom
     try:
         from app.services.health_agent import health_agent
         
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         
         try:
             # Pipeline: Fetch -> Parse -> Normalize -> Health Check
@@ -74,7 +74,7 @@ def investigate_logs(
         # Try to get metrics, but don't fail the whole investigation if metrics fail
         normalized = []
         try:
-            target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+            target_url = url if url else "http://localhost:9090/metrics"
             raw_text = prometheus_service.fetch_prometheus_metrics(target_url)
             raw_metrics = prometheus_service.parse_metrics(raw_text)
             normalized = normalization_service.normalize_metrics(raw_metrics)
@@ -96,7 +96,7 @@ def get_reliability_prediction(url: Optional[str] = Query(None, description="Pro
     try:
         from app.services.reliability_agent import reliability_agent
         
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         
         # Pipeline: Fetch -> Parse -> Normalize -> Reliability Prediction
         try:
@@ -128,7 +128,7 @@ def get_alert_analysis(
     try:
         from app.services.alert_agent import alert_agent
         
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         
         # Pipeline: Fetch -> Parse -> Normalize -> AI Alert Analysis
         try:
@@ -161,7 +161,7 @@ def run_supervisor(
     try:
         from app.services.supervisor_agent import supervisor_agent
         
-        target_url = url if url else "http://demo.robustperception.io:9090/metrics"
+        target_url = url if url else "http://localhost:9090/metrics"
         target_log = log_path if log_path else "app.log"
         
         # Centralized Metric Fetching

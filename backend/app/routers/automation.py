@@ -7,7 +7,7 @@ from app.services.prometheus_ingestion import prometheus_service
 from app.services.normalization import normalization_service
 from app.services.health_agent import health_agent
 from app.services.investigator_agent import investigator_agent
-from app.services.reliabilit_agent import reliability_agent
+from app.services.reliability_agent import reliability_agent
 from app.services.alert_agent import alert_agent
 from app.services.email_service import email_service
 

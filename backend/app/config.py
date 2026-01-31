@@ -1,7 +1,11 @@
 from pydantic_settings import BaseSettings
 import os
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+
+# Robustly load .env from the same directory as this file
+env_path = Path(__file__).parent / ".env"
+load_dotenv(dotenv_path=env_path)
 
 class Settings(BaseSettings):
     GITHUB_API_URL: str = "https://api.github.com"
@@ -16,6 +20,7 @@ class Settings(BaseSettings):
     GITHUB_REDIRECT_URI: str = "http://localhost:8000/oauth/callback"
     
     class Config:
-        env_file = ".env"
+        env_file = str(env_path)
+        extra = "ignore" # Ignore extra fields in .env
 
 settings = Settings()
